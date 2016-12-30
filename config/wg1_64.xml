@@ -1,0 +1,30 @@
+<configuration>
+	<!-- options: hadoop, local -->
+	<mode>hadoop</mode>
+	<!-- ================================================================= -->
+	<!-- hadoop mode -->  
+	<refPath>filesB37/human_g1k_v37_decoy.fasta</refPath>
+	<snpPath>filesB37/dbsnp_138.b37.vcf</snpPath>
+	<exomePath></exomePath>
+	<inputFolder>wg_720</inputFolder>
+	<outputFolder>output512</outputFolder> 
+	<toolsFolder>power8tools</toolsFolder>
+	<!-- ================================================================= -->
+	<extraBWAParams>-M</extraBWAParams>
+	<gatkOpts>-XX:+AggressiveOpts</gatkOpts>
+	<hadoopInstall>$HADOOP_INSTALL</hadoopInstall>
+	<tmpFolder>./</tmpFolder>
+	<!-- <sfFolder>/disk1/local/users/zalars/bsparkFiles</sfFolder> -->
+	<sfFolder>./</sfFolder>
+	<interleaved>yes</interleaved>
+	<driverMemGB>4</driverMemGB> 
+	<!-- Num of Tasks in parallel = numExecs * execTasks -->
+	<execMemGB>12</execMemGB> 
+	<numExecs>256</numExecs>
+	<execTasks>1</execTasks>
+	<!-- Program specific -->
+	<bwaThreads>4</bwaThreads>
+	<gatkThreads>4</gatkThreads>
+	<gatkMemGB>8</gatkMemGB>
+	<numRegions>1152</numRegions>
+</configuration>
