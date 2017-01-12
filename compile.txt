@@ -1,12 +1,9 @@
 [info] Set current project to DNASeqAnalyzer (in build file:/D:/sparkga/)
-[info] Compiling 3 Scala sources and 2 Java sources to D:\sparkga\target\scala-2.11\classes...
-[warn] there were 3 deprecation warning(s); re-run with -deprecation for details
+[info] Compiling 1 Scala source to D:\sparkga\target\scala-2.11\classes...
+[warn] there were 2 deprecation warning(s); re-run with -deprecation for details
 [warn] there were 1 feature warning(s); re-run with -feature for details
 [warn] two warnings found
-[warn] bootstrap class path not set in conjunction with -source 1.7
-[info] D:\sparkga\src\main\java\tudelft\utils\Configuration.java: D:\sparkga\src\main\java\tudelft\utils\Configuration.java uses unchecked or unsafe operations.
-[info] D:\sparkga\src\main\java\tudelft\utils\Configuration.java: Recompile with -Xlint:unchecked for details.
 [info] Packaging D:\sparkga\target\scala-2.11\dnaseqanalyzer_2.11-1.0.jar ...
 [info] Done packaging.
-[success] Total time: 8 s, completed 12-jan-2017 18:38:08
+[success] Total time: 14 s, completed 12-jan-2017 20:06:00
 Java HotSpot(TM) 64-Bit Server VM warning: ignoring option MaxPermSize=256m; support was removed in 8.0

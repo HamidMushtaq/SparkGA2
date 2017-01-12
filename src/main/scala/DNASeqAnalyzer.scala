@@ -1149,7 +1149,7 @@ def main(args: Array[String])
 		conf.set("spark.core.connection.ack.wait.timeout","6000")
 		conf.set("spark.akka.frameSize","256")
 	}
-	conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+	//conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
 	conf.set("spark.network.timeout", "12000")
 	conf.set("spark.driver.maxResultSize", "2g")
 	conf.set("spark.executor.heartbeatInterval", "60s")
