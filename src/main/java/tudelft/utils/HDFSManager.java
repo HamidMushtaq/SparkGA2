@@ -37,18 +37,21 @@ import java.nio.charset.Charset;
 public class HDFSManager
 {
 	private final static boolean DISABLE_CACHE = false;
+	private org.apache.hadoop.conf.Configuration config;
+	private FileSystem fs;
 	
-	public static void create(String hadoopInstall, String fname)
+	public HDFSManager() throws IOException
 	{
-		org.apache.hadoop.conf.Configuration config = new org.apache.hadoop.conf.Configuration();
-		config.addResource(new Path(hadoopInstall + "etc/hadoop/core-site.xml"));
-		config.addResource(new Path(hadoopInstall + "etc/hadoop/hdfs-site.xml"));
+		config = new org.apache.hadoop.conf.Configuration();
 		if (DISABLE_CACHE)
 			config.setBoolean("fs.hdfs.impl.disable.cache", true);
-		
+		fs = FileSystem.get(config);
+	}
+	
+	public void create(String fname) throws IOException
+	{
 		try
 		{
-			FileSystem fs = FileSystem.get(config); 
 			Path filenamePath = new Path(fname);  
 		
 			if (fs.exists(filenamePath))
@@ -63,21 +66,13 @@ public class HDFSManager
         }
 	}
 	
-	public static boolean exists(String hadoopInstall, String fname)
+	public boolean exists(String fname)
 	{
-		org.apache.hadoop.conf.Configuration config = new org.apache.hadoop.conf.Configuration();
-		config.addResource(new Path(hadoopInstall + "etc/hadoop/core-site.xml"));
-		config.addResource(new Path(hadoopInstall + "etc/hadoop/hdfs-site.xml"));
-		if (DISABLE_CACHE)
-			config.setBoolean("fs.hdfs.impl.disable.cache", true);
-		
 		try
 		{
-			FileSystem fs = FileSystem.get(config); 
 			Path filenamePath = new Path(fname);  
 		
-			return fs.exists(filenamePath);
-				
+			return fs.exists(filenamePath);		
 		}
 		catch (IOException ex) 
 		{
@@ -85,24 +80,17 @@ public class HDFSManager
 			return false;
         }
 	}
-	
-	public static void append(String hadoopInstall, String fname, String s)
+
+	public void append(String fname, String s)
 	{
-		String newContent = readWholeFile(hadoopInstall, fname) + s;
-		writeWholeFile(hadoopInstall, fname, newContent);
+		String newContent = readWholeFile(fname) + s;
+		writeWholeFile(fname, newContent);
 	}
 	
-	public static String readWholeFile(String hadoopInstall, String fname)
+	public String readWholeFile(String fname)
 	{
-		org.apache.hadoop.conf.Configuration config = new org.apache.hadoop.conf.Configuration();
-		config.addResource(new Path(hadoopInstall + "etc/hadoop/core-site.xml"));
-		config.addResource(new Path(hadoopInstall + "etc/hadoop/hdfs-site.xml"));
-		if (DISABLE_CACHE)
-			config.setBoolean("fs.hdfs.impl.disable.cache", true);
-		
 		try
 		{			
-			FileSystem fs = FileSystem.get(config);
 			StringBuilder builder=new StringBuilder();
 			byte[] buffer=new byte[8192000];
 			int bytesRead;
@@ -121,17 +109,10 @@ public class HDFSManager
         }
 	}
 	
-	public static byte[] readBytes(String hadoopInstall, String fname)
+	public byte[] readBytes(String fname)
 	{
-		org.apache.hadoop.conf.Configuration config = new org.apache.hadoop.conf.Configuration();
-		config.addResource(new Path(hadoopInstall + "etc/hadoop/core-site.xml"));
-		config.addResource(new Path(hadoopInstall + "etc/hadoop/hdfs-site.xml"));
-		if (DISABLE_CACHE)
-			config.setBoolean("fs.hdfs.impl.disable.cache", true);
-		
 		try
 		{			
-			FileSystem fs = FileSystem.get(config);
 			ByteArrayOutputStream baos = new ByteArrayOutputStream();
 			byte[] buffer=new byte[67108864];
 			int bytesRead;
@@ -150,17 +131,10 @@ public class HDFSManager
         }
 	}
 	
-	public static String readPartialFile(String hadoopInstall, String fname, int bytes)
+	public String readPartialFile(String fname, int bytes)
 	{
-		org.apache.hadoop.conf.Configuration config = new org.apache.hadoop.conf.Configuration();
-		config.addResource(new Path(hadoopInstall + "etc/hadoop/core-site.xml"));
-		config.addResource(new Path(hadoopInstall + "etc/hadoop/hdfs-site.xml"));
-		if (DISABLE_CACHE)
-			config.setBoolean("fs.hdfs.impl.disable.cache", true);
-		
 		try
 		{			
-			FileSystem fs = FileSystem.get(config);
 			StringBuilder builder=new StringBuilder();
 			ByteArrayOutputStream baos = new ByteArrayOutputStream(bytes+1);
 			
@@ -177,17 +151,10 @@ public class HDFSManager
         }
 	}
 	
-	public static void writeWholeFile(String hadoopInstall, String fname, String s)
+	public void writeWholeFile(String fname, String s)
 	{
-		org.apache.hadoop.conf.Configuration config = new org.apache.hadoop.conf.Configuration();
-		config.addResource(new Path(hadoopInstall + "etc/hadoop/core-site.xml"));
-		config.addResource(new Path(hadoopInstall + "etc/hadoop/hdfs-site.xml"));
-		if (DISABLE_CACHE)
-			config.setBoolean("fs.hdfs.impl.disable.cache", true);
-		
 		try
 		{
-			FileSystem fs = FileSystem.get(config); 
 			Path filenamePath = new Path(fname);  
 		
 			if (fs.exists(filenamePath))
@@ -207,17 +174,10 @@ public class HDFSManager
         }
 	}
 	
-	public static void writeBytes(String hadoopInstall, String fname, byte[] bytes)
+	public void writeBytes(String fname, byte[] bytes)
 	{
-		org.apache.hadoop.conf.Configuration config = new org.apache.hadoop.conf.Configuration();
-		config.addResource(new Path(hadoopInstall + "etc/hadoop/core-site.xml"));
-		config.addResource(new Path(hadoopInstall + "etc/hadoop/hdfs-site.xml"));
-		if (DISABLE_CACHE)
-			config.setBoolean("fs.hdfs.impl.disable.cache", true);
-		
 		try
 		{
-			FileSystem fs = FileSystem.get(config); 
 			Path filenamePath = new Path(fname);  
 		
 			if (fs.exists(filenamePath))
@@ -233,17 +193,10 @@ public class HDFSManager
         }
 	}
 	
-	public static void remove(String hadoopInstall, String fname)
+	public void remove(String fname)
 	{
-		org.apache.hadoop.conf.Configuration config = new org.apache.hadoop.conf.Configuration();
-		config.addResource(new Path(hadoopInstall + "etc/hadoop/core-site.xml"));
-		config.addResource(new Path(hadoopInstall + "etc/hadoop/hdfs-site.xml"));
-		if (DISABLE_CACHE)
-			config.setBoolean("fs.hdfs.impl.disable.cache", true);
-		
 		try
 		{			
-			FileSystem fs = FileSystem.get(config);
 			fs.delete(new Path(fname), true);
 		}
 		catch (IOException ex) 
@@ -285,20 +238,12 @@ public class HDFSManager
 		}
 	}
 	
-	public static int download(String hadoopInstall, String fileName, String hdfsFolder, String localFolder, boolean overwrite)
+	public int download(String fileName, String hdfsFolder, String localFolder)
 	{
-		org.apache.hadoop.conf.Configuration config = new org.apache.hadoop.conf.Configuration();
-		config.addResource(new Path(hadoopInstall + "etc/hadoop/core-site.xml"));
-		config.addResource(new Path(hadoopInstall + "etc/hadoop/hdfs-site.xml"));
-		if (DISABLE_CACHE)
-			config.setBoolean("fs.hdfs.impl.disable.cache", true);
-		
 		try
-		{
-			FileSystem fs = FileSystem.get(config); 
-			
+		{	
 			File f = new File(localFolder + fileName);
-			if (f.exists() && !overwrite)
+			if (f.exists())
 				f.delete();
 			
 			fs.copyToLocalFile(new Path(hdfsFolder + fileName), 
@@ -313,18 +258,10 @@ public class HDFSManager
 		}
 	}
 	
-	public static int downloadIfRequired(String hadoopInstall, String fileName, String hdfsFolder, String localFolder)
+	public int downloadIfRequired(String fileName, String hdfsFolder, String localFolder)
 	{
-		org.apache.hadoop.conf.Configuration config = new org.apache.hadoop.conf.Configuration();
-		config.addResource(new Path(hadoopInstall + "etc/hadoop/core-site.xml"));
-		config.addResource(new Path(hadoopInstall + "etc/hadoop/hdfs-site.xml"));
-		if (DISABLE_CACHE)
-			config.setBoolean("fs.hdfs.impl.disable.cache", true);
-		
 		try
-		{
-			FileSystem fs = FileSystem.get(config); 
-			
+		{	
 			File f = new File(localFolder + fileName);
 			if (!f.exists())
 			{
@@ -348,17 +285,10 @@ public class HDFSManager
 		}
 	}
 	
-	public static long getFileSize(String hadoopInstall, String filePath)
+	public long getFileSize(String filePath)
 	{
-		org.apache.hadoop.conf.Configuration config = new org.apache.hadoop.conf.Configuration();
-		config.addResource(new Path(hadoopInstall + "etc/hadoop/core-site.xml"));
-		config.addResource(new Path(hadoopInstall + "etc/hadoop/hdfs-site.xml"));
-		if (DISABLE_CACHE)
-			config.setBoolean("fs.hdfs.impl.disable.cache", true);
-		
 		try
 		{
-			FileSystem fs = FileSystem.get(config); 
 			Path path = new Path(filePath);  
 			
 			if (!fs.exists(path))
@@ -373,18 +303,10 @@ public class HDFSManager
 		}
 	}
 	
-	public static void upload(String hadoopInstall, String fileName, String localFolder, String hdfsFolder)
+	public void upload(String fileName, String localFolder, String hdfsFolder)
 	{
-		org.apache.hadoop.conf.Configuration config = new org.apache.hadoop.conf.Configuration();
-		config.addResource(new Path(hadoopInstall + "etc/hadoop/core-site.xml"));
-		config.addResource(new Path(hadoopInstall + "etc/hadoop/hdfs-site.xml"));
-		if (DISABLE_CACHE)
-			config.setBoolean("fs.hdfs.impl.disable.cache", true);
-		
 		try
-		{
-			FileSystem fs = FileSystem.get(config); 
-			
+		{	
 			fs.copyFromLocalFile(true, true, new Path(localFolder + fileName), 
 				new Path(hdfsFolder + fileName));
 		}
@@ -394,17 +316,10 @@ public class HDFSManager
 		}
 	}
 
-	public static String[] getFileList(String hadoopInstall, String hdfsFolder)
+	public String[] getFileList(String hdfsFolder)
 	{
-		org.apache.hadoop.conf.Configuration config = new org.apache.hadoop.conf.Configuration();
-		config.addResource(new Path(hadoopInstall + "etc/hadoop/core-site.xml"));
-		config.addResource(new Path(hadoopInstall + "etc/hadoop/hdfs-site.xml"));
-		if (DISABLE_CACHE)
-			config.setBoolean("fs.hdfs.impl.disable.cache", true);
-		
 		try
 		{
-			FileSystem fs = FileSystem.get(config); 
 			FileStatus[] status = fs.listStatus(new Path(hdfsFolder));
 			String[] fileNames = new String[status.length];
 
