@@ -1,26 +1,19 @@
-/* SparkGA
+/*
+ * Copyright (C) 2016-2017 Hamid Mushtaq
  *
- * This file is a part of SparkGA.
- * 
- * Copyright (c) 2016-2017 TU Delft, The Netherlands.
- * All rights reserved.
- * 
- * SparkGA is free software: you can redistribute it and/or modify it under the
- * terms of the GNU Lesser General Public License as published by the
- * Free Software Foundation, either version 3 of the License, or
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * SparkGA is distributed in the hope that it will be useful,
+ * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Lesser General Public License for more details.
+ * GNU General Public License for more details.
  *
- * You should have received a copy of the GNU Lesser General Public License
- * along with SparkGA.  If not, see <http://www.gnu.org/licenses/>.
- * 
- * Authors: Hamid Mushtaq
- *
-*/
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 package tudelft.utils;
 
 import htsjdk.samtools.*;
@@ -37,40 +30,37 @@ public class Configuration implements Serializable
 	private String mode;
 	private String refPath;
 	private String snpPath;
+	private String indelPath;
 	private String exomePath;
 	private String inputFolder;
 	private String outputFolder;
 	private String toolsFolder;
-	private String tmpFolder;
-	private String sfFolder;
+	private String rgString;
 	private String extraBWAParams;
 	private String gatkOpts;
+	private String tmpFolder;
+	private String sfFolder;
 	private String hadoopInstall;
-	private String numExecs;
-	private String bwaThreads;
-	private String gatkThreads;
+	private String numInstances;
+	private String numThreads;
+	private String ignoreList;
 	private String numRegions;
-	private String isInterleaved;
-	private int minChrLength;
-	private boolean isPaired;
-	private String chr;
-	private boolean keepChrSplitPairs;
-	private double scc;
-	private double sec;
 	private SAMSequenceDictionary dict;
+	private String scc;
+	private String sec;
+	private String useKnownIndels;
 	private Long startTime;
 	private String execMemGB;
-	private String gatkMemGB;
 	private String driverMemGB;
 	private int[] chrLenArray;
 	private int[] chrRegionSizeArray;
 	private HashMap<String, Integer> chrNameMap;
 	
-	public void initialize()
+	public void initialize(String configFile, String part)
 	{	
 		try
 		{
-			File file = new File("config.xml");
+			File file = new File(configFile);
 			DocumentBuilderFactory documentBuilderFactory = DocumentBuilderFactory.newInstance();
 			DocumentBuilder documentBuilder = documentBuilderFactory.newDocumentBuilder();
 			Document document = documentBuilder.parse(file);
@@ -78,33 +68,36 @@ public class Configuration implements Serializable
 			mode = document.getElementsByTagName("mode").item(0).getTextContent();
 			refPath = document.getElementsByTagName("refPath").item(0).getTextContent();
 			snpPath = document.getElementsByTagName("snpPath").item(0).getTextContent();
+			indelPath = document.getElementsByTagName("indelPath").item(0).getTextContent();
 			exomePath = document.getElementsByTagName("exomePath").item(0).getTextContent();
 			inputFolder = correctFolderName(document.getElementsByTagName("inputFolder").item(0).getTextContent());
 			outputFolder = correctFolderName(document.getElementsByTagName("outputFolder").item(0).getTextContent());
 			toolsFolder = correctFolderName(document.getElementsByTagName("toolsFolder").item(0).getTextContent());
-			tmpFolder = correctFolderName(document.getElementsByTagName("tmpFolder").item(0).getTextContent());
-			sfFolder = correctFolderName(document.getElementsByTagName("sfFolder").item(0).getTextContent());
+			rgString = document.getElementsByTagName("rgString").item(0).getTextContent();
 			extraBWAParams = document.getElementsByTagName("extraBWAParams").item(0).getTextContent();
 			gatkOpts = document.getElementsByTagName("gatkOpts").item(0).getTextContent();
+			tmpFolder = correctFolderName(document.getElementsByTagName("tmpFolder").item(0).getTextContent());
+			sfFolder = correctFolderName(document.getElementsByTagName("sfFolder").item(0).getTextContent());
 			hadoopInstall = correctFolderName(document.getElementsByTagName("hadoopInstall").item(0).getTextContent());
-			numExecs = document.getElementsByTagName("numExecs").item(0).getTextContent();
-			bwaThreads = document.getElementsByTagName("bwaThreads").item(0).getTextContent();
-			gatkThreads = document.getElementsByTagName("gatkThreads").item(0).getTextContent();
+			ignoreList = document.getElementsByTagName("ignoreList").item(0).getTextContent();
 			numRegions = document.getElementsByTagName("numRegions").item(0).getTextContent();
-			isInterleaved = document.getElementsByTagName("interleaved").item(0).getTextContent();
-			execMemGB = document.getElementsByTagName("execMemGB").item(0).getTextContent();
-			gatkMemGB = document.getElementsByTagName("gatkMemGB").item(0).getTextContent();
-			driverMemGB = document.getElementsByTagName("driverMemGB").item(0).getTextContent();
+			
+			numInstances = document.getElementsByTagName("numInstances" + part).item(0).getTextContent();
+			if (Integer.parseInt(part) == 2)
+				numThreads = document.getElementsByTagName("numTasks2").item(0).getTextContent();
+			else
+				numThreads = document.getElementsByTagName("numThreads" + part).item(0).getTextContent();
+			execMemGB = document.getElementsByTagName("execMemGB" + part).item(0).getTextContent();
+			driverMemGB = document.getElementsByTagName("driverMemGB" + part).item(0).getTextContent();
+			scc	= document.getElementsByTagName("standCC").item(0).getTextContent();
+			sec	= document.getElementsByTagName("standEC").item(0).getTextContent();
+			useKnownIndels = document.getElementsByTagName("useKnownIndels").item(0).getTextContent();
+			
+			if ((!mode.equals("local")) && (!mode.equals("hadoop")))
+				throw new IllegalArgumentException("Unrecognized mode type (" + mode + "). It should be either local or hadoop.");
 	
-			isPaired 				= true;
-			// Note: The following values were copied from a Halvade's run
-			minChrLength 			= 125486450;
-			chr 					= null;
-			keepChrSplitPairs 		= true;
-			scc						= 30.0;
-			sec						= 30.0;
-			startTime				= System.currentTimeMillis();
-				
+			startTime = System.currentTimeMillis();
+			
 			DictParser dictParser = new DictParser();
 			if (mode.equals("local"))
 			{
@@ -122,8 +115,6 @@ public class Configuration implements Serializable
 			dictParser.setChrRegionsSizes(Integer.parseInt(numRegions));
 			chrRegionSizeArray = dictParser.getChrRegionSizeArray();
 			chrNameMap = dictParser.getChrNameMap();
-			
-			print();
 		}
 		catch(Exception e)
 		{
@@ -135,6 +126,9 @@ public class Configuration implements Serializable
 	private String correctFolderName(String s)
 	{
 		String r = s.trim();
+		
+		if (r.equals(""))
+			return r;
 		
 		if (r.charAt(r.length() - 1) != '/')
 			return r + '/';
@@ -155,6 +149,11 @@ public class Configuration implements Serializable
 	public int getChrLen(int chr)
 	{
 		return chrLenArray[chr];
+	}
+	
+	public int getChrRegionSize(int chr)
+	{
+		return chrRegionSizeArray[chr];
 	}
 
 	public String getMode()
@@ -177,6 +176,11 @@ public class Configuration implements Serializable
 		return snpPath;
 	}
 	
+	public String getIndelPath()
+	{
+		return indelPath;
+	}
+	
 	public String getExomePath()
 	{
 		return exomePath;
@@ -197,6 +201,29 @@ public class Configuration implements Serializable
 		return toolsFolder;
 	}
 	
+	public String getRGString()
+	{
+		return rgString;
+	}
+	
+	public String getExtraBWAParams()
+	{
+		return extraBWAParams;
+	}
+	
+	public String getRGID()
+	{
+		int start = rgString.indexOf("ID:");
+		int end = rgString.indexOf("\\", start);
+		
+		return rgString.substring(start+3, end);
+	}
+	
+	public String getGATKopts()
+	{
+		return gatkOpts;
+	}
+	
 	public String getTmpFolder()
 	{
 		return tmpFolder;
@@ -207,19 +234,19 @@ public class Configuration implements Serializable
 		return sfFolder;
 	}
 	
-	public String getNumExecs()
+	public String getNumInstances()
 	{
-		return numExecs;
+		return numInstances;
 	}
 	
-	public String getBWAThreads()
+	public String getNumThreads()
 	{
-		return bwaThreads;
+		return numThreads;
 	}
 	
-	public String getGATKThreads()
+	public String getIgnoreList()
 	{
-		return gatkThreads;
+		return ignoreList;
 	}
 	
 	public String getNumRegions()
@@ -227,50 +254,31 @@ public class Configuration implements Serializable
 		return numRegions;
 	}
 	
-	public boolean getInterleaved()
+	public void setNumInstances(String numInstances)
 	{
-		return (isInterleaved.equals("yes"))? true : false;
+		this.numInstances = numInstances;
 	}
 	
-	public void setNumExecs(String numExecs)
+	public void setNumThreads(String numThreads)
 	{
-		this.numExecs = numExecs;
+		this.numThreads = numThreads;
 	}
-		
-	public int getMinChrLength()
-	{
-		return minChrLength;
-	}
-	
-	public boolean getIsPaired()
-	{
-		return isPaired;
-	}
-	
-	public String getChr()
-	{
-		return chr;
-	}
-	
-	public boolean getKeepChrSplitPairs()
-	{
-		return keepChrSplitPairs;
-	}
-	
+
 	public String getSCC()
 	{
-		Double x = scc;
-		
-		return x.toString();
+		return scc.toString();
 	}
 	
 	public String getSEC()
 	{
-		Double x = sec;
-		
-		return x.toString();
+		return sec.toString();
 	}
 	
+	public String getUseKnownIndels()
+	{
+		return useKnownIndels;
+	}
+		
 	public Long getStartTime()
 	{
 		return startTime;
@@ -288,7 +296,7 @@ public class Configuration implements Serializable
 	
 	public String getExecMemX()
 	{
-		Integer value = Integer.parseInt(gatkMemGB) * 1024;
+		Integer value = Integer.parseInt(execMemGB) * 1024;
 		Integer execValue = value - 1280; // 1280 mb less
 		
 		return "-Xmx" + execValue.toString() + "m";
@@ -303,20 +311,10 @@ public class Configuration implements Serializable
 	{
 		return !exomePath.trim().equals("");
 	}
-
+	
 	public int getChrIndex(String chrName)
 	{
 		return chrNameMap.get(chrName);
-	}
-	
-	public String getExtraBWAParams()
-	{
-		return extraBWAParams;
-	}
-	
-	public String getGATKopts()
-	{
-		return gatkOpts;
 	}
 	
 	public void print()
@@ -329,6 +327,9 @@ public class Configuration implements Serializable
 		System.out.println("outputFolder:\t" + outputFolder);
 		System.out.println("tmpFolder:\t" + tmpFolder);
 		System.out.println("hadoopInstall:\t" + hadoopInstall);
+		System.out.println("ignoreList:\t" + ignoreList);
+		System.out.println("numInstances:\t" + numInstances);
+		System.out.println("numThreads:\t" + numThreads);
 		System.out.println("execMemGB:\t" + execMemGB);
 		System.out.println("driverMemGB:\t" + driverMemGB);
 		for (String key : chrNameMap.keySet()) {

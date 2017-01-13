@@ -1,72 +1,51 @@
-/* SparkGA
+/*
+ * Copyright (C) 2016-2017 Hamid Mushtaq
  *
- * This file is a part of SparkGA.
- * 
- * Copyright (c) 2016-2017 TU Delft, The Netherlands.
- * All rights reserved.
- * 
- * SparkGA is free software: you can redistribute it and/or modify it under the
- * terms of the GNU Lesser General Public License as published by the
- * Free Software Foundation, either version 3 of the License, or
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * SparkGA is distributed in the hope that it will be useful,
+ * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Lesser General Public License for more details.
+ * GNU General Public License for more details.
  *
- * You should have received a copy of the GNU Lesser General Public License
- * along with SparkGA.  If not, see <http://www.gnu.org/licenses/>.
- * 
- * Authors: Hamid Mushtaq
- *
-*/
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 import org.apache.spark.SparkContext
 import org.apache.spark.SparkContext._
 import org.apache.spark.SparkConf
 import org.apache.spark.scheduler._
-import org.apache.spark.util.SizeEstimator
 import sys.process._
 
 import java.io._
 import java.nio.file.{Paths, Files}
 import java.net._
-import java.nio.file.Files
-import java.nio.file.Paths
 import java.text.DateFormat
 import java.text.SimpleDateFormat
 import java.util.Calendar
-import java.util.Arrays
 
 import scala.sys.process.Process
 import scala.io.Source
 import scala.collection.JavaConversions._
+import scala.collection.mutable._
 import scala.util.Sorting._
+import scala.concurrent.Future
+import scala.concurrent.forkjoin._
+import scala.collection.parallel.ForkJoinTaskSupport
+import scala.util.Random
 
-import htsjdk.samtools._
-
-import tudelft.utils.ChromosomeRange
-import tudelft.utils.DictParser
-import tudelft.utils.Configuration
-import tudelft.utils.SAMRecordIterator
-import tudelft.utils.HDFSManager
+import tudelft.utils._
 import utils._
 
 import org.apache.commons.lang3.exception.ExceptionUtils
 import org.apache.spark.storage.StorageLevel._
 import org.apache.spark.HashPartitioner
 
-import collection.mutable.HashMap
-import org.apache.spark.HashPartitioner
-
-import java.text.DateFormat
-import java.text.SimpleDateFormat
-import java.util.Calendar
-
-import scala.collection.parallel.ForkJoinTaskSupport
-import scala.collection.parallel.immutable.ParMap
-
-import org.apache.spark.RangePartitioner
+import htsjdk.samtools.util.BufferedLineReader
+import htsjdk.samtools._
 
 object DNASeqAnalyzer 
 {
@@ -86,8 +65,6 @@ final val readLBInputDirectly = true
 
 final val SF = 1e12.toLong
 final val chrPosGran = 10000
-
-val bw = new BufferedWriter(new OutputStreamWriter(new FileOutputStream("sparkListener.txt"), "UTF-8"))
 //////////////////////////////////////////////////////////////////////////////
 def bwaRun (x: String, config: Configuration) : Array[(Long, Int)] = 
 {
@@ -139,7 +116,7 @@ def bwaRun (x: String, config: Configuration) : Array[(Long, Int)] =
 	}
 	else
 	{
-		hdfsManager.download(x + ".gz", config.getInputFolder, config.getTmpFolder)
+		hdfsManager.download(x + ".gz", config.getInputFolder, config.getTmpFolder, false)
 		val unzipStr = "gunzip -c " + inputFileName
 		dbgLog("bwa/" + x, t0, "0a\t" + unzipStr + ", Input file size = " + ((new File(inputFileName).length) / (1024 * 1024)) + " MB. ", config)
 		unzipStr #> new java.io.File(fqFileName) !;
@@ -151,7 +128,7 @@ def bwaRun (x: String, config: Configuration) : Array[(Long, Int)] =
 	// Example: bwa mem input_files_directory/fasta_file.fasta -p -t 2 x.fq > out_file
 	// run bwa mem
 	val progName = getBinToolsDirPath(config) + "bwa mem "
-	val command_str = progName + getRefFilePath(config) + " " + config.getExtraBWAParams + " -t " + config.getBWAThreads.toInt + " " + fqFileName
+	val command_str = progName + getRefFilePath(config) + " " + config.getExtraBWAParams + " -t " + config.getNumThreads + " " + fqFileName
 	var writerMap = new scala.collection.mutable.HashMap[Long, StringBuilder]()
 	
 	dbgLog("bwa/" + x, t0, "1\tbwa mem started: " + command_str, config)
@@ -169,7 +146,7 @@ def bwaRun (x: String, config: Configuration) : Array[(Long, Int)] =
 	new File(fqFileName).delete()
 	
 	val parMap = writerMap.par
-	val nThreads = config.getBWAThreads.toInt
+	val nThreads = config.getNumThreads.toInt
 	parMap.tasksupport = new ForkJoinTaskSupport(new scala.concurrent.forkjoin.ForkJoinPool(nThreads))
 	val arr = parMap.map{case (k, content) => (k, content.split('\n').size, new GzipCompressor(content.toString).compress)}.toArray
 	val retArr = new Array[(Long, Int)](arr.size)
@@ -258,7 +235,7 @@ def getSamRecords(x: String, chrPosMap: scala.collection.Map[Long, Int], config:
 			bfr.setSource(hdfsManager.readBytes(config.getOutputFolder + "bwaOut/" + x))
 		else
 		{
-			hdfsManager.download(x, config.getOutputFolder + "bwaOut/", config.getTmpFolder)
+			hdfsManager.download(x, config.getOutputFolder + "bwaOut/", config.getTmpFolder, false)
 			bfr.read(config.getTmpFolder + x)
 		}
 	}
@@ -305,6 +282,12 @@ def uploadFileToOutput(filePath: String, outputPath: String, delSrc: Boolean, co
 		case e: Exception => errLog(outputPath, 0, 
 			"\tException in uploadFileToOutput: " + ExceptionUtils.getStackTrace(e) , config) 
 	}
+}
+
+def buildRegion(index: Int, lines: Array[Array[Byte]], config: Configuration) : (String, Int) =
+{
+	val region = getRegion(index, lines, config)
+	return createBAMAndBEDFiles(index, region._2, config)
 }
 
 def getRegion(chrRegion: Integer, samRecordsZipped: Array[Array[Byte]], config: Configuration) : (Int, Array[SAMRecord]) =
@@ -419,7 +402,7 @@ def createBAMAndBEDFiles(chrRegion: Integer, samRecordsSorted: Array[SAMRecord],
 	
 	val RGID = "GROUP1"
 	val r = new ChromosomeRange()
-	val input = new SAMRecordIterator(samRecordsSorted, header, r)
+	val input = new tudelft.utils.SAMRecordIterator(samRecordsSorted, header, r)
 	var count = 0
 	while(input.hasNext()) 
 	{
@@ -456,6 +439,91 @@ def createBAMAndBEDFiles(chrRegion: Integer, samRecordsSorted: Array[SAMRecord],
 	return (chrRegion.toString, samRecordsSorted.size)
 }
 
+def copyExomeBed(exomeBed: String, config: Configuration)
+{
+	val lines = readWholeFile(config.getExomePath, config)
+	var from = 0
+		
+	if (lines(0) == '@')
+	{
+		var done = false
+		
+		while(!done)
+		{
+			var next = lines.indexOf('\n', from)
+			from = next + 1
+			if (lines(from) != '@')
+				done = true
+		}
+	}
+		
+	new PrintWriter(exomeBed) {write(lines.substring(from)); close}
+}
+
+def makeCorrectBedFile(cmdStr: String, bedFile: String)
+{
+	val cmdRes = (cmdStr #> new java.io.File(bedFile + ".1")).!
+	val lines = scala.io.Source.fromFile(bedFile + ".1").mkString.split('\n')
+	var s = ""
+	
+	for( line <- lines)
+	{
+		val e = line.split('\t')
+		val lval = e(1).toLong
+		var hval = e(2).toLong
+		
+		if (lval == hval)
+			hval += 1
+		
+		s += e(0) + "\t" + lval + "\t" + hval + "\n"
+	}
+	
+	new PrintWriter(bedFile) {write(s); close}
+	new File(bedFile + ".1").delete()
+}
+
+def makeRegionFile(tmpFileBase: String, r: ChromosomeRange, config: Configuration)
+{
+	val bedFile = tmpFileBase + ".bed"
+	val hdfsManager = new HDFSManager
+	
+	if (config.useExome())
+	{
+		val toolsFolder = getBinToolsDirPath(config)
+		val exomeBed = tmpFileBase + "_exome.bed"
+		
+		copyExomeBed(exomeBed, config)
+		
+		if (config.getMode != "local")
+		{
+			hdfsManager.downloadIfRequired("bedtools", config.getToolsFolder, config.getTmpFolder)
+			val file = new File(config.getTmpFolder + "bedtools") 
+			file.setExecutable(true)
+		}
+		
+		 // write a bed file with the region!
+		val bed = new File(exomeBed + "_tmp.bed")
+		r.writeToBedRegionFile(bed.getAbsolutePath())
+		makeCorrectBedFile(toolsFolder + "bedtools intersect -a " + exomeBed + " -b " + bed + " -header", bedFile)
+		
+		// Delete temporary files
+		new File(exomeBed).delete()
+		new File(exomeBed + "_tmp.bed").delete()
+	}
+	else
+	{
+		val bed = new File(bedFile)
+		r.writeToBedRegionFile(bed.getAbsolutePath())
+	}
+}
+
+def createSAMWriter(fileName: String, config: Configuration) : SAMFileWriter =
+{
+	val header = createHeader(config)
+	val factory = new SAMFileWriterFactory()
+	return factory.makeSAMWriter(header, false, new File(fileName))
+}
+
 def compareSAMRecords(a: SAMRecord, b: SAMRecord) : Int = 
 {
 	if(a.getReferenceIndex == b.getReferenceIndex)
@@ -464,9 +532,22 @@ def compareSAMRecords(a: SAMRecord, b: SAMRecord) : Int =
 		return a.getReferenceIndex - b.getReferenceIndex
 }
 
-def variantCall (chrRegion: String, config: Configuration) : (String, Integer) =
+def createHeader(config: Configuration) : SAMFileHeader =
 {
-	return (chrRegion, processBAM(chrRegion, config))
+	val header = new SAMFileHeader()
+	header.setSequenceDictionary(config.getDict())
+	
+	return header
+}
+
+def makeDirIfRequired(dir: String, config: Configuration)
+{
+	if (config.getMode == "local")
+	{
+		val file = new File(dir)
+		if (!file.exists())
+			file.mkdir()
+	}			
 }
 
 def processBAM(chrRegion: String, config: Configuration) : Integer =
@@ -478,46 +559,46 @@ def processBAM(chrRegion: String, config: Configuration) : Integer =
 	if (config.getMode != "local")
 	{
 		if (writeToLog == true)
-			hdfsManager.create(config.getOutputFolder + "log/vc/" + "region_" + chrRegion)
+			hdfsManager.create(config.getOutputFolder + "log/" + "region_" + chrRegion)
 			
 		if (!(new File(config.getTmpFolder).exists))
 			new File(config.getTmpFolder).mkdirs()
 		
-		dbgLog("vc/region_" + chrRegion, t0, "2g\tDownloading bam and bed files to the local directory...", config)
-		hdfsManager.download(chrRegion + "-p1.bam", config.getOutputFolder + "bam/", config.getTmpFolder)
-		hdfsManager.download(chrRegion + ".bed", config.getOutputFolder + "bed/", config.getTmpFolder)
-		dbgLog("vc/region_" + chrRegion, t0, "2h\tCompleted download of bam and bed to the local directory!", config)
+		dbgLog("region_" + chrRegion, t0, "2g\tDownloading bam and bed files to the local directory...", config)
+		hdfsManager.download(chrRegion + "-p1.bam", config.getOutputFolder + "bam/", config.getTmpFolder, false)
+		hdfsManager.download(chrRegion + ".bed", config.getOutputFolder + "bed/", config.getTmpFolder, false)
+		dbgLog("region_" + chrRegion, t0, "2h\tCompleted download of bam and bed to the local directory!", config)
 		if (downloadNeededFiles)
 		{
-			dbgLog("vc/region_" + chrRegion, t0, "*\tDownloading tools", config)
+			dbgLog("region_" + chrRegion, t0, "*\tDownloading tools", config)
 			downloadVCFTools(config)
 		}
 	}
 	
 	var f = new File(tmpFileBase + "-p1.bam");
 	if(f.exists() && !f.isDirectory()) 
-		dbgLog("vc/region_" + chrRegion, t0, "*+\tBAM file does exist in the tmp directory!", config)
+		dbgLog("region_" + chrRegion, t0, "*+\tBAM file does exist in the tmp directory!", config)
 	else
-		dbgLog("vc/region_" + chrRegion, t0, "*-\tBAM file does not exist in the tmp directory!", config)
+		dbgLog("region_" + chrRegion, t0, "*-\tBAM file does not exist in the tmp directory!", config)
 	
 	f = new File(tmpFileBase + ".bed");
 	if(f.exists() && !f.isDirectory()) 
-		dbgLog("vc/region_" + chrRegion, t0, "#+\tbed file does exist in the tmp directory!!", config)
+		dbgLog("region_" + chrRegion, t0, "#+\tbed file does exist in the tmp directory!!", config)
 	else
-		dbgLog("vc/region_" + chrRegion, t0, "#-\tbed file does not exist in the tmp directory!!", config)
+		dbgLog("region_" + chrRegion, t0, "#-\tbed file does not exist in the tmp directory!!", config)
 	
-	dbgLog("vc/region_" + chrRegion, t0, "3\tPicard processing started", config)
+	dbgLog("region_" + chrRegion, t0, "3\tPicard processing started", config)
 	var cmdRes = picardPreprocess(tmpFileBase, config)
 	if (downloadNeededFiles)
 	{
-		dbgLog("vc/region_" + chrRegion, t0, "*\tDownloading VCF ref files", config)
-		downloadVCFRefFiles("vc/region_" + chrRegion, config)
+		dbgLog("region_" + chrRegion, t0, "*\tDownloading VCF ref files", config)
+		downloadVCFRefFiles("region_" + chrRegion, config)
 	}
 	cmdRes += indelRealignment(tmpFileBase, t0, chrRegion, config)
 	if (downloadNeededFiles)
 	{
-		dbgLog("vc/region_" + chrRegion, t0, "*\tDownloading snp file", config)
-		downloadVCFSnpFile("vc/region_" + chrRegion, config)
+		dbgLog("region_" + chrRegion, t0, "*\tDownloading snp file", config)
+		downloadVCFSnpFile("region_" + chrRegion, config)
 	}
 	cmdRes += baseQualityScoreRecalibration(tmpFileBase, t0, chrRegion, config)
 	cmdRes += DnaVariantCalling(tmpFileBase, t0, chrRegion, config)
@@ -528,8 +609,13 @@ def processBAM(chrRegion: String, config: Configuration) : Integer =
 		hdfsManager.upload(chrRegion + ".vcf", config.getTmpFolder(), config.getOutputFolder())
 	}
 	
-	dbgLog("vc/region_" + chrRegion, t0, "9\tOutput written to vcf file", config)
+	dbgLog("region_" + chrRegion, t0, "9\tOutput written to vcf file", config)
 	return cmdRes
+}
+
+def variantCall (chrRegion: String, config: Configuration) : (String, Integer) =
+{
+	return (chrRegion, processBAM(chrRegion, config))
 }
 
 def picardPreprocess(tmpFileBase: String, config: Configuration) : Integer =
@@ -566,22 +652,25 @@ def picardPreprocess(tmpFileBase: String, config: Configuration) : Integer =
 def indelRealignment(tmpFileBase: String, t0: Long, chrRegion: String, config: Configuration) : Integer =
 {
 	val toolsFolder = getToolsDirPath(config)
+	val knownIndel = getIndelFilePath(config)
 	val tmpFile1 = tmpFileBase + "-2.bam"
 	val preprocess = tmpFileBase + ".bam"
 	val targets = tmpFileBase + ".intervals"
 	val MemString = config.getExecMemX()
-	val regionStr = " -L " + tmpFileBase + ".bed" 
+	val regionStr = " -L " + tmpFileBase + ".bed"
+	val indelStr = if (config.getUseKnownIndels().toBoolean) (" -known " + knownIndel) else ""; 
 	
 	// Realigner target creator
 	var cmdStr = "java " + MemString + " " + config.getGATKopts + " -jar " + toolsFolder + "GenomeAnalysisTK.jar -T RealignerTargetCreator -nt " + 
-		config.getGATKThreads() + " -R " + getRefFilePath(config) + " -I " + preprocess + " -o " + targets + regionStr
-	dbgLog("vc/region_" + chrRegion, t0, "4\t" + cmdStr, config)
+	config.getNumThreads() + " -R " + getRefFilePath(config) + " -I " + preprocess + indelStr + " -o " +
+		targets + regionStr
+	dbgLog("region_" + chrRegion, t0, "4\t" + cmdStr, config)
 	var cmdRes = cmdStr.!
 	
 	// Indel realigner
 	cmdStr = "java " + MemString + " " + config.getGATKopts + " -jar " + toolsFolder + "GenomeAnalysisTK.jar -T IndelRealigner -R " + 
-		getRefFilePath(config) + " -I " + preprocess + " -targetIntervals " + targets + " -o " + tmpFile1 + regionStr
-	dbgLog("vc/region_" + chrRegion, t0, "5\t" + cmdStr, config)
+		getRefFilePath(config) + " -I " + preprocess + " -targetIntervals " + targets + indelStr + " -o " + tmpFile1 + regionStr
+	dbgLog("region_" + chrRegion, t0, "5\t" + cmdStr, config)
 	cmdRes += cmdStr.!
 	
 	// Hamid - Save output of indelRealignment
@@ -599,24 +688,26 @@ def indelRealignment(tmpFileBase: String, t0: Long, chrRegion: String, config: C
 def baseQualityScoreRecalibration(tmpFileBase: String, t0: Long, chrRegion: String, config: Configuration) : Integer =
 {
 	val toolsFolder = getToolsDirPath(config)
+	val knownIndel = getIndelFilePath(config)
 	val knownSite = getSnpFilePath(config)
 	val tmpFile1 = tmpFileBase + "-2.bam"
 	val tmpFile2 = tmpFileBase + "-3.bam"
 	val table = tmpFileBase + ".table"
 	val MemString = config.getExecMemX()
 	val regionStr = " -L " + tmpFileBase + ".bed"
+	val indelStr = if (config.getUseKnownIndels().toBoolean) (" -knownSites " + knownIndel) else ""; 
 	
 	// Base recalibrator
 	var cmdStr = "java " + MemString + " " + config.getGATKopts + " -jar " + toolsFolder + "GenomeAnalysisTK.jar -T BaseRecalibrator -nct " + 
-		config.getGATKThreads() + " -R " + getRefFilePath(config) + " -I " + tmpFile1 + " -o " + table + regionStr + 
-		" --disable_auto_index_creation_and_locking_when_reading_rods" + " -knownSites " + knownSite
-	dbgLog("vc/region_" + chrRegion, t0, "6\t" + cmdStr, config)
+		config.getNumThreads() + " -R " + getRefFilePath(config) + " -I " + tmpFile1 + " -o " + table + regionStr + 
+		" --disable_auto_index_creation_and_locking_when_reading_rods" + indelStr + " -knownSites " + knownSite
+	dbgLog("region_" + chrRegion, t0, "6\t" + cmdStr, config)
 	var cmdRes = cmdStr.!
 
 	// Print reads
 	cmdStr = "java " + MemString + " " + config.getGATKopts + " -jar " + toolsFolder + "GenomeAnalysisTK.jar -T PrintReads -R " + 
 		getRefFilePath(config) + " -I " + tmpFile1 + " -o " + tmpFile2 + " -BQSR " + table + regionStr 
-	dbgLog("vc/region_" + chrRegion, t0, "7\t" + cmdStr, config)
+	dbgLog("region_" + chrRegion, t0, "7\t" + cmdStr, config)
 	cmdRes += cmdStr.!
 	
 	// Hamid - Save output of baseQualityScoreRecalibration
@@ -641,10 +732,10 @@ def DnaVariantCalling(tmpFileBase: String, t0: Long, chrRegion: String, config: 
 	
 	// Haplotype caller
 	var cmdStr = "java " + MemString + " " + config.getGATKopts + " -jar " + toolsFolder + "GenomeAnalysisTK.jar -T HaplotypeCaller -nct " + 
-		config.getGATKThreads() + " -R " + getRefFilePath(config) + " -I " + tmpFile2 + " --genotyping_mode DISCOVERY -o " + snps + 
+		config.getNumThreads() + " -R " + getRefFilePath(config) + " -I " + tmpFile2 + " --genotyping_mode DISCOVERY -o " + snps + 
 		" -stand_call_conf " + config.getSCC() + " -stand_emit_conf " + config.getSEC() + regionStr + 
 		" --no_cmdline_in_header --disable_auto_index_creation_and_locking_when_reading_rods"
-	dbgLog("vc/region_" + chrRegion, t0, "8\t" + cmdStr, config)
+	dbgLog("region_" + chrRegion, t0, "8\t" + cmdStr, config)
 	var cmdRes = cmdStr.!
 	
 	// Delete temporary files
@@ -655,124 +746,15 @@ def DnaVariantCalling(tmpFileBase: String, t0: Long, chrRegion: String, config: 
 	return cmdRes
 }
 
-def readWholeFile(fname: String, config: Configuration) : String =
-{
-	val hdfsManager = new HDFSManager
-	
-	if (config.getMode != "local")
-		return hdfsManager.readWholeFile(fname)
-	else
-		return scala.io.Source.fromFile(fname).mkString
-}
-
-def writeWholeFile(fname: String, s: String, config: Configuration)
-{
-	val hdfsManager = new HDFSManager
-	
-	if (config.getMode != "local")
-		hdfsManager.writeWholeFile(fname, s)
-	else
-		new PrintWriter(fname) {write(s); close}
-}
-
-def copyExomeBed(exomeBed: String, config: Configuration)
-{
-	val lines = readWholeFile(config.getExomePath, config)
-	var from = 0
-		
-	if (lines(0) == '@')
-	{
-		var done = false
-		
-		while(!done)
-		{
-			var next = lines.indexOf('\n', from)
-			from = next + 1
-			if (lines(from) != '@')
-				done = true
-		}
-	}
-		
-	new PrintWriter(exomeBed) {write(lines.substring(from)); close}
-}
-
-def makeCorrectBedFile(cmdStr: String, bedFile: String)
-{
-	val cmdRes = (cmdStr #> new java.io.File(bedFile + ".1")).!
-	val lines = scala.io.Source.fromFile(bedFile + ".1").mkString.split('\n')
-	val sb = new StringBuilder
-	
-	lines.map { line =>
-		val e = line.split('\t')
-		try {
-		val lval = e(1).toLong
-		var hval = e(2).toLong
-			
-		if (lval == hval)
-			hval += 1
-			
-		sb.append(e(0) + "\t" + lval + "\t" + hval + "\n")
-		} 
-		catch
-		{
-			case e: Exception => println("Error in makeCorrectBedFile of " + bedFile + ", line = " + line)
-		}
-	}
-	
-	new PrintWriter(bedFile) {write(sb.toString); close}
-	new File(bedFile + ".1").delete
-}
-
-def makeRegionFile(tmpFileBase: String, r: ChromosomeRange, config: Configuration) : (Integer, String) =
-{
-	val bedFile = tmpFileBase + ".bed"
-	
-	if (config.useExome())
-	{
-		val toolsFolder = getBinToolsDirPath(config)
-		val exomeBed = tmpFileBase + "_exome.bed"
-		
-		downloadBinProgram("bedtools", config)
-		val bedToolsProg = new File(getBinToolsDirPath(config) + "bedtools")
-		bedToolsProg.setExecutable(true)
-		
-		copyExomeBed(exomeBed, config)
-		
-		 // write a bed file with the region!
-		val bed = new File(exomeBed + "_tmp.bed")
-		r.writeToBedRegionFile(bed.getAbsolutePath())
-		makeCorrectBedFile(toolsFolder + "bedtools intersect -a " + exomeBed + " -b " + bed + " -header", bedFile)
-		
-		// Delete temporary files
-		new File(exomeBed).delete()
-		new File(exomeBed + "_tmp.bed").delete()
-		
-		if (saveAllStages)
-			uploadFileToOutput(bedFile, "bed", false, config)
-		
-		return (0, bedFile)
-	}
-	else
-	{
-		val bed = new File(bedFile)
-		r.writeToBedRegionFile(bed.getAbsolutePath())
-		
-		if (saveAllStages)
-			uploadFileToOutput(bedFile, "bed", false, config)
-		
-		return (0, bedFile)
-	}
-}
-
 def getVCF(chrRegion: String, config: Configuration) : Array[((Integer, Integer), String)] =
 {
 	var a = scala.collection.mutable.ArrayBuffer.empty[((Integer, Integer), String)]
 	var fileName = config.getTmpFolder() + chrRegion + ".vcf"
 	var commentPos = 0
 	val hdfsManager = new HDFSManager
-
+	
 	if (config.getMode() != "local")
-		hdfsManager.download(chrRegion + ".vcf", config.getOutputFolder, config.getTmpFolder)
+		hdfsManager.download(chrRegion + ".vcf", config.getOutputFolder, config.getTmpFolder, false)
 	
 	if (!Files.exists(Paths.get(fileName)))
 		return a.toArray
@@ -827,31 +809,18 @@ def writeVCF(a: Array[((Integer, Integer), String)], config: Configuration) =
 
 def getInputFileNames(dir: String, config: Configuration) : Array[String] = 
 {
-	val mode = config.getMode()
+	val mode = config.getMode
 	val hdfsManager = new HDFSManager
 	
 	if (mode != "local")
 	{
-		var inputDir = dir
-		
-		if (config.getInterleaved() == false)
-			inputDir = inputDir + "one/"
-		val a: Array[String] = hdfsManager.getFileList(inputDir)
+		val a: Array[String] = hdfsManager.getFileList(dir)
 
-		if (a != null)
-			for(i <- 0 until a.size)
-				a(i) = a(i).replace(".gz", "")
-		
 		return a
 	}
 	else
 	{
-		var d: File = null
-	
-		if (config.getInterleaved() == true)
-			d = new File(dir)
-		else
-			d = new File(dir + "one/")
+		var d = new File(dir)	
 		
 		if (d.exists && d.isDirectory) 
 		{
@@ -860,7 +829,7 @@ def getInputFileNames(dir: String, config: Configuration) : Array[String] =
 			var i = 0
 			
 			for(i <- 0 until list.size)
-				a(i) = list(i).getName().replace(".gz", "")
+				a(i) = list(i).getName
 			
 			return a
 		} 
@@ -885,16 +854,22 @@ def getRefFilePath(config: Configuration) : String =
 		config.getSfFolder() + getFileNameFromPath(config.getRefPath())
 }
 
+def getSnpFilePath(config: Configuration) : String = 
+{
+	return if (config.getMode() == "local") config.getSnpPath() else
+		config.getSfFolder() + getFileNameFromPath(config.getSnpPath())
+}
+
 def getDictFilePath(config: Configuration) : String = 
 {
 	return if (config.getMode() == "local") config.getDictPath() else 
 		config.getSfFolder() + getFileNameFromPath(config.getDictPath())
 }
 
-def getSnpFilePath(config: Configuration) : String = 
+def getIndelFilePath(config: Configuration) : String = 
 {
-	return if (config.getMode() == "local") config.getSnpPath() else
-		config.getSfFolder() + getFileNameFromPath(config.getSnpPath())
+	return if (config.getMode() == "local") config.getIndelPath() else
+		config.getSfFolder() + getFileNameFromPath(config.getIndelPath())
 }
 
 def getExomeFilePath(config: Configuration) : String = 
@@ -913,19 +888,15 @@ def getBinToolsDirPath(config: Configuration) : String =
 	return if (config.getMode() == "local") config.getToolsFolder() else config.getTmpFolder()
 }
 
-def downloadBinProgram(fileName: String, config: Configuration)
-{	
-	val hdfsManager = new HDFSManager
-	
-	if (config.getMode != "local")
-		hdfsManager.downloadIfRequired(fileName, config.getToolsFolder(), config.getTmpFolder)
+def getTimeStamp() : String =
+{
+	return new SimpleDateFormat("HH:mm:ss").format(Calendar.getInstance().getTime())
 }
 
 def log(fname: String, key: String, t0: Long, message: String, config: Configuration) = 
 {
 	val ct = System.currentTimeMillis
 	val at = (ct - config.getStartTime()) / 1000
-	val et = (ct - t0) / 1000
 	val hdfsManager = new HDFSManager
 	
 	if (config.getMode != "local")
@@ -933,27 +904,17 @@ def log(fname: String, key: String, t0: Long, message: String, config: Configura
 		val IP = InetAddress.getLocalHost().toString()
 		val node = IP.substring(0, IP.indexOf('/'))
 		// Node, time, absolute time, key, message
-		hdfsManager.append(fname, node + "\t" + getTimeStamp() + "(" + et.toString() + " secs)\t" + 
+		hdfsManager.append(fname, node + "\t" + getTimeStamp() + "\t" + 
 			at.toString() + "\t" + message + "\n")
 	}
 	else
 	{
-		val s = getTimeStamp() + "(" + et.toString() + " secs)\t" + at.toString() + "\t" + message
+		val s = getTimeStamp() + "\t" + at.toString() + "\t" + message
 		println(s)
 		val fw = new FileWriter(fname, true) 
 		fw.write(s + "\n") 
 		fw.close()
 	}
-}
-
-def makeDirIfRequired(dir: String, config: Configuration)
-{
-	if (config.getMode == "local")
-	{
-		val file = new File(dir)
-		if (!file.exists())
-			file.mkdir()
-	}			
 }
 
 def statusLog(key: String, t0: Long, message: String, config: Configuration) =
@@ -964,12 +925,7 @@ def statusLog(key: String, t0: Long, message: String, config: Configuration) =
 def dbgLog(key: String, t0: Long, message: String, config: Configuration) =
 {
 	if (writeToLog == true)
-	{
-		if (config.getMode != "local")
-			log(config.getOutputFolder + "log/" + key, key, t0, message, config)
-		else
-			log("sparkLog.txt", key, t0, key + "\t" + message, config)
-	}
+		log(config.getOutputFolder + "log/" + key, key, t0, message, config)
 }
 
 def errLog(key: String, t0: Long, message: String, config: Configuration) =
@@ -977,30 +933,39 @@ def errLog(key: String, t0: Long, message: String, config: Configuration) =
 	log("errorLog.txt", key, t0, key + "\t" + message, config)
 }
 
+def readWholeFile(fname: String, config: Configuration) : String =
+{
+	val hdfsManager = new HDFSManager
+	
+	if (config.getMode != "local")
+		return hdfsManager.readWholeFile(fname)
+	else
+		return scala.io.Source.fromFile(fname).mkString
+}
+
 def readDictFile(config: Configuration) : String =
 {
 	return scala.io.Source.fromFile(getDictFilePath(config)).mkString
 }
 
-def calcRDDSize(rdd: org.apache.spark.rdd.RDD[(Integer, (Integer, Integer, Array[Byte]))]): Long = 
+def readPartialFile(fname: String, bytes: Int, config: Configuration) : String =
 {
-	rdd.map(x => x._2._3).map(_.length.toLong).reduce(_+_) //add the sizes together
-}
-
-def tester (chrRegion: Integer, samRecords: Array[String], config: Configuration) =
-{
-	statusLog("tester", 0, "region = " + chrRegion + ", " + samRecords.size, config)
-} 
+	val hdfsManager = new HDFSManager
 	
-def getTimeStamp() : String =
-{
-	return "[" + new SimpleDateFormat("HH:mm:ss").format(Calendar.getInstance().getTime()) + "]"
+	if (config.getMode != "local")
+		return hdfsManager.readPartialFile(fname, bytes)
+	else
+		return scala.io.Source.fromFile(fname).mkString
 }
 
-def buildRegion(index: Int, lines: Array[Array[Byte]], config: Configuration) : (String, Int) =
+def writeWholeFile(fname: String, s: String, config: Configuration)
 {
-	val region = getRegion(index, lines, config)
-	return createBAMAndBEDFiles(index, region._2, config)
+	val hdfsManager = new HDFSManager
+	
+	if (config.getMode != "local")
+		hdfsManager.writeWholeFile(fname, s)
+	else
+		new PrintWriter(fname) {write(s); close}
 }
 
 def gunZipDownloadedFile(x: String, filePath: String, config: Configuration) : Long =
@@ -1008,9 +973,6 @@ def gunZipDownloadedFile(x: String, filePath: String, config: Configuration) : L
 	val fileName = getFileNameFromPath(filePath)
 	val hdfsManager = new HDFSManager
 	val fileSize = hdfsManager.getFileSize(filePath)
-	
-	if (!hdfsManager.exists(config.getOutputFolder + "log/" + x))
-		hdfsManager.create(config.getOutputFolder + "log/" + x)
 	
 	dbgLog(x, 0, "#1\tfilePath = " + filePath + ", fileSize = " + fileSize, config)
 	try{("gunzip " + config.getTmpFolder + fileName + ".gz").!}
@@ -1042,15 +1004,6 @@ def fileToDownloadAlreadyExists(hdfsPath: String, config: Configuration) : Boole
 	return f.exists && (f.length == fileSize)
 }
 
-def downloadDictFile(config: Configuration)
-{
-	val refFolder = getDirFromPath(config.getRefPath())
-	val refFileName = getFileNameFromPath(config.getRefPath())
-	val hdfsManager = new HDFSManager
-	
-	hdfsManager.downloadIfRequired(refFileName.replace(".fasta", ".dict"), refFolder, config.getSfFolder)
-}
-
 def downloadBWAFiles(x: String, config: Configuration)
 {
 	val refFolder = getDirFromPath(config.getRefPath())
@@ -1076,14 +1029,6 @@ def downloadBWAFiles(x: String, config: Configuration)
 	hdfsManager.downloadIfRequired(refFileName + ".fai", refFolder, config.getSfFolder)
 	hdfsManager.downloadIfRequired(refFileName + ".pac", refFolder, config.getSfFolder)
 	hdfsManager.downloadIfRequired(refFileName + ".sa", refFolder, config.getSfFolder)
-}
-
-def downloadPicardTools(config: Configuration)
-{
-	val hdfsManager = new HDFSManager
-	
-	hdfsManager.downloadIfRequired("CleanSam.jar", config.getToolsFolder(), config.getSfFolder())
-	hdfsManager.downloadIfRequired("MarkDuplicates.jar", config.getToolsFolder(), config.getSfFolder())
 }
 
 def downloadVCFTools(config: Configuration)
@@ -1113,6 +1058,14 @@ def downloadVCFRefFiles(x: String, config: Configuration)
 	}
 	hdfsManager.downloadIfRequired(refFileName.replace(".fasta", ".dict"), refFolder, config.getSfFolder)
 	hdfsManager.downloadIfRequired(refFileName + ".fai", refFolder, config.getSfFolder)
+	
+	if (config.getUseKnownIndels != "false")
+	{
+		val indelFolder = getDirFromPath(config.getIndelPath())
+		val indelFileName = getFileNameFromPath(config.getIndelPath())
+		hdfsManager.downloadIfRequired(indelFileName, indelFolder, config.getSfFolder())
+		hdfsManager.download(indelFileName + ".idx", indelFolder, config.getSfFolder, true)
+	}
 }
 
 def downloadVCFSnpFile(x: String, config: Configuration)
@@ -1126,107 +1079,77 @@ def downloadVCFSnpFile(x: String, config: Configuration)
 		hdfsManager.downloadIfRequired(snpFileName + ".gz", snpFolder, config.getSfFolder);
 		gunZipDownloadedFile(x, config.getSnpPath, config)
 	}
-	hdfsManager.downloadIfRequired(snpFileName + ".idx", snpFolder, config.getSfFolder)	
+	hdfsManager.download(snpFileName + ".idx", snpFolder, config.getSfFolder, true)	
+}
+
+def downloadDictFile(config: Configuration)
+{
+	val refFolder = getDirFromPath(config.getRefPath())
+	val refFileName = getFileNameFromPath(config.getRefPath())
+	val hdfsManager = new HDFSManager
+	
+	hdfsManager.downloadIfRequired(refFileName.replace(".fasta", ".dict"), refFolder, config.getSfFolder)
+}
+
+def downloadBinProgram(fileName: String, config: Configuration)
+{	
+	val hdfsManager = new HDFSManager
+	
+	if (config.getMode != "local")
+		hdfsManager.downloadIfRequired(fileName, config.getToolsFolder(), config.getTmpFolder)
 }
 
 def main(args: Array[String]) 
 {
-	val part = args(0).toInt
 	val config = new Configuration()
-	config.initialize()
-	 
+	config.initialize(args(0), args(1))
+	val part = args(1).toInt
 	val conf = new SparkConf().setAppName("DNASeqAnalyzer")
-	if (config.getMode() == "local")
+	
+	if (config.getMode == "local")
 	{
-		conf.setMaster("local[" + config.getNumExecs() + "]")
-		conf.set("spark.cores.max", config.getNumExecs())
+		conf.setMaster("local[" + config.getNumInstances() + "]")
+		conf.set("spark.cores.max", config.getNumInstances())
 	}
 	else
 	{
 		conf.set("spark.shuffle.blockTransferService", "nio") 
-		if (compressRDDs)
-			conf.set("spark.rdd.compress","true")
-		conf.set("spark.core.connection.ack.wait.timeout","6000")
-		conf.set("spark.akka.frameSize","256")
+		conf.set("spark.network.timeout", "12000")
+		if (part == 1)
+		{
+			conf.set("spark.storage.memoryFraction", "0.1") // For older version of Spark
+			//conf.set("spark.memory.storageFraction", "0.1") // For Spark 1.6
+			//conf.set("spark.yarn.executor.memoryOverhead", "512")
+		}
 	}
-	//conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
-	conf.set("spark.network.timeout", "12000")
-	conf.set("spark.driver.maxResultSize", "2g")
-	conf.set("spark.executor.heartbeatInterval", "60s")
-	//conf.set("spark.yarn.executor.memoryOverhead", "2048")
-	//conf.set("spark.akka.frameSize", "256")
-	//conf.set("spark.executor.extraJavaOptions","-XX:-UseGCOverheadLimit")
-        // FYL
-        System.getProperties().storeToXML(System.out,"System Properties");
-
+   
 	val sc = new SparkContext(conf)
 	val bcConfig = sc.broadcast(config)
 	val hdfsManager = new HDFSManager
-	var t0 = System.currentTimeMillis
-	
-	if (part < 3)
-	{
-		sc.addSparkListener(new SparkListener() 
-		{
-			override def onApplicationStart(applicationStart: SparkListenerApplicationStart) 
-			{
-				bw.write(getTimeStamp() + " Spark ApplicationStart: " + applicationStart.appName + "\n");
-				bw.flush
-			}
-
-			override def onApplicationEnd(applicationEnd: SparkListenerApplicationEnd) 
-			{
-				bw.write(getTimeStamp() + " Spark ApplicationEnd: " + applicationEnd.time + "\n");
-				bw.flush
-			}
-
-			override def onStageCompleted(stageCompleted: SparkListenerStageCompleted) 
-			{
-				val map = stageCompleted.stageInfo.rddInfos
-				map.foreach(row => {
-					if (row.isCached)
-					{
-						bw.write(getTimeStamp() + row.name + ": memSize = " + (row.memSize / 1000000) + "MB, diskSize " + 
-							row.diskSize + ", numPartitions = " + row.numPartitions + "-" + row.numCachedPartitions + "\n");
-						if (config.getMode() != "local")
-						{
-							statusLog("SparkListener:", t0, getTimeStamp() + " " + row.name + ": memSize = " + (row.memSize / 1000000) + 
-								"MB, diskSize " + row.diskSize + ", numPartitions = " + row.numPartitions + "-" + row.numCachedPartitions, config)
-						}
-					}
-					else if (row.name.contains("rdd_"))
-					{
-						if (config.getMode() != "local")
-							statusLog("SparkListener:", t0, getTimeStamp() + " " + row.name + " processed!", config)
-						bw.write(getTimeStamp() + row.name + " processed!\n");
-					}
-					bw.flush
-				})
-			}
-		});
-	}
-	
-	if (config.getMode != "local")
-	{
-		hdfsManager.create("sparkLog.txt")
-		hdfsManager.create("errorLog.txt")
-	}
-	else
-		new java.io.File(config.getOutputFolder).mkdirs
 	
 	config.print() 
 	
-	// Hamid: Test code //////////////////////////////////////////////////////
-	// Put test code here if any
-	//System.exit(1)
-	//////////////////////////////////////////////////////////////////////////
+	if (part == 1)
+	{
+		if (config.getMode != "local")
+		{
+			hdfsManager.create("sparkLog.txt")
+			hdfsManager.create("errorLog.txt")
+		}
+		else
+		{
+			val file = new File(config.getOutputFolder + "log")
+			if ((writeToLog == true) && !file.exists())
+				file.mkdir()
+		}
+	}
 	
-	var i = 0
-	statusLog("Spark conf: ", t0, sc.getConf.getAll.mkString("\n"), config)
+	var t0 = System.currentTimeMillis
+	val numOfRegions = config.getNumRegions.toInt
 	//////////////////////////////////////////////////////////////////////////
 	if (part == 1)
 	{
-		val inputFileNames = getInputFileNames(config.getInputFolder, config)  
+		val inputFileNames = getInputFileNames(config.getInputFolder, config).map(x => x.replace(".gz", ""))  
 		if (inputFileNames == null)
 		{
 			println("The input directory " + config.getInputFolder() + " does not exist!")
@@ -1310,7 +1233,7 @@ def main(args: Array[String])
 		makeDirIfRequired(config.getOutputFolder + "log", config)
 		writeWholeFile(config.getOutputFolder + "log/part2.txt", sb.toString, config)
 	}
-	else if (part == 3)
+	else // (part == 3)
 	{
 		// For sorting
 		implicit val vcfOrdering = new Ordering[(Integer, Integer)] {
@@ -1329,31 +1252,9 @@ def main(args: Array[String])
 		val vcf = inputData.map(x => variantCall(x, bcConfig.value)).flatMap(x=> getVCF(x._1, bcConfig.value))
 		writeVCF(vcf.distinct.sortByKey().collect, config)
 	}
-	else // If some error occured at the end of part 3, you can use this part to combine all the vcf files into sparkCombined.vcf
-	{
-		// For sorting
-		implicit val vcfOrdering = new Ordering[(Integer, Integer)] {
-			override def compare(a: (Integer, Integer), b: (Integer, Integer)) = if (a._1 == b._1) a._2 - b._2 else a._1 - b._1;
-		}
-		//
-		
-		var inputFileNames: Array[String] = null
-		if (config.getMode != "local") 
-			inputFileNames = getInputFileNames(config.getOutputFolder, config).filter(x => x.contains(".vcf")).map(x => x.replace(".vcf", ""))
-		else 
-			inputFileNames = getInputFileNames(config.getTmpFolder, config).filter(x => x.contains(".vcf")).map(x => x.replace(".vcf", ""))
-		inputFileNames.foreach(println)
-		
-		val inputData = sc.parallelize(inputFileNames, inputFileNames.size)
-		val vcf = inputData.flatMap(x=> getVCF(x, bcConfig.value))
-		writeVCF(vcf.distinct.sortByKey(true).collect, config)
-	}
 	//////////////////////////////////////////////////////////////////////////
 	var et = (System.currentTimeMillis - t0) / 1000
 	statusLog("Execution time:", t0, et.toString() + "\tsecs", config)
-	if (part < 3)
-		sc.stop()
-	bw.close()
 }
 //////////////////////////////////////////////////////////////////////////////
 } // End of Class definition

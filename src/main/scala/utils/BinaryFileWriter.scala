@@ -1,3 +1,19 @@
+/*
+ * Copyright (C) 2016-2017 Hamid Mushtaq
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 package utils
 
 import java.io._
@@ -5,19 +21,6 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.nio.ByteBuffer
-
-//++= to append to arraybuffer
-// Example: http://www.javapractices.com/topic/TopicAction.do?Id=245
-// https://www.caveofprogramming.com/java/java-file-reading-and-writing-files-in-java.html
-
-// Example usage
-/*
-	val bfw = new BinaryFileWriter
-	
-	bfw.writeRecord((137, new GzipCompressor("I am hamid").compress))
-	bfw.writeRecord((187, new GzipCompressor("And I am checking this class!").compress))
-	bfw.write("compressed.bin")
-*/
 
 class BinaryFileWriter(fileName: String)
 {

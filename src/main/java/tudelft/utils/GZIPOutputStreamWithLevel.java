@@ -1,26 +1,19 @@
-/* SparkGA
+/*
+ * Copyright (C) 2016-2017 Hamid Mushtaq
  *
- * This file is a part of SparkGA.
- * 
- * Copyright (c) 2016-2017 TU Delft, The Netherlands.
- * All rights reserved.
- * 
- * SparkGA is free software: you can redistribute it and/or modify it under the
- * terms of the GNU Lesser General Public License as published by the
- * Free Software Foundation, either version 3 of the License, or
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * SparkGA is distributed in the hope that it will be useful,
+ * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Lesser General Public License for more details.
+ * GNU General Public License for more details.
  *
- * You should have received a copy of the GNU Lesser General Public License
- * along with SparkGA.  If not, see <http://www.gnu.org/licenses/>.
- * 
- * Authors: Hamid Mushtaq
- *
-*/
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 package utils;
 
 import java.util.zip.GZIPOutputStream;
