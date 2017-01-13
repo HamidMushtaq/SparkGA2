@@ -20,9 +20,9 @@
 	<numRegions>1024</numRegions>
 	<!-- ===================== -->
 	<!-- parameters for part 1 -->
-	<execMemGB1>16</execMemGB1> 						
+	<execMemGB1>12</execMemGB1> 						
 	<driverMemGB1>4</driverMemGB1> 					
-	<numInstances1>216</numInstances1> 	
+	<numInstances1>288</numInstances1> 	
 	<numThreads1>4</numThreads1>
 	<!-- parameters for part 2 -->
 	<execMemGB2>10</execMemGB2> 						

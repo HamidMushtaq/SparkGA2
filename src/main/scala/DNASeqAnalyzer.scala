@@ -60,11 +60,10 @@ final val showNumOfBytes = false
 // Downloading
 final val downloadNeededFiles = false
 // Compression and reading of HDFS files
-final val unzipBWAInputDirectly = true
+final val unzipBWAInputDirectly = false
 final val readLBInputDirectly = true
 
 final val SF = 1e12.toLong
-final val chrPosGran = 10000
 //////////////////////////////////////////////////////////////////////////////
 def bwaRun (x: String, config: Configuration) : Array[(Long, Int)] = 
 {

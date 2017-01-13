@@ -23,7 +23,7 @@ class SamRegionsParser(chunkID: String, writerMap: scala.collection.mutable.Hash
 	var badLines = 0
 	val header = new StringBuilder
 	final val SF = 1e12.toLong
-	final val chrPosGran = 10000
+	final val chrPosGran = 1000
 	
 	def append(line: String) : Integer = 
 	{
