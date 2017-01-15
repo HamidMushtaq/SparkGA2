@@ -52,6 +52,7 @@ public class Configuration implements Serializable
 	private Long startTime;
 	private String execMemGB;
 	private String driverMemGB;
+	private String vcMemGB;
 	private int[] chrLenArray;
 	private int[] chrRegionSizeArray;
 	private HashMap<String, Integer> chrNameMap;
@@ -89,6 +90,7 @@ public class Configuration implements Serializable
 				numThreads = document.getElementsByTagName("numThreads" + part).item(0).getTextContent();
 			execMemGB = document.getElementsByTagName("execMemGB" + part).item(0).getTextContent();
 			driverMemGB = document.getElementsByTagName("driverMemGB" + part).item(0).getTextContent();
+			vcMemGB = document.getElementsByTagName("vcMemGB").item(0).getTextContent();
 			scc	= document.getElementsByTagName("standCC").item(0).getTextContent();
 			sec	= document.getElementsByTagName("standEC").item(0).getTextContent();
 			useKnownIndels = document.getElementsByTagName("useKnownIndels").item(0).getTextContent();
@@ -296,7 +298,7 @@ public class Configuration implements Serializable
 	
 	public String getExecMemX()
 	{
-		Integer value = Integer.parseInt(execMemGB) * 1024;
+		Integer value = Integer.parseInt(vcMemGB) * 1024;
 		Integer execValue = value - 1280; // 1280 mb less
 		
 		return "-Xmx" + execValue.toString() + "m";

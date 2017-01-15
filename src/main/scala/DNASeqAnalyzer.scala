@@ -1154,37 +1154,35 @@ def main(args: Array[String])
 	
 	var t0 = System.currentTimeMillis
 	val numOfRegions = config.getNumRegions.toInt
-	if (part < 3)
+	// Spark Listener
+	sc.addSparkListener(new SparkListener() 
 	{
-		sc.addSparkListener(new SparkListener() 
+		override def onApplicationStart(applicationStart: SparkListenerApplicationStart) 
 		{
-			override def onApplicationStart(applicationStart: SparkListenerApplicationStart) 
-			{
-				statusLog("SparkListener:", t0, getTimeStamp() + " Spark ApplicationStart: " + applicationStart.appName + "\n", config)
-			}
+			statusLog("SparkListener:", t0, getTimeStamp() + " Spark ApplicationStart: " + applicationStart.appName + "\n", config)
+		}
 
-			override def onApplicationEnd(applicationEnd: SparkListenerApplicationEnd) 
-			{
-				statusLog("SparkListener:", t0, getTimeStamp() + " Spark ApplicationEnd: " + applicationEnd.time + "\n", config)
-			}
+		override def onApplicationEnd(applicationEnd: SparkListenerApplicationEnd) 
+		{
+			statusLog("SparkListener:", t0, getTimeStamp() + " Spark ApplicationEnd: " + applicationEnd.time + "\n", config)
+		}
 
-			override def onStageCompleted(stageCompleted: SparkListenerStageCompleted) 
-			{
-				val map = stageCompleted.stageInfo.rddInfos
-				map.foreach(row => {
-					if (row.isCached)
-					{	
-						statusLog("SparkListener:", t0, getTimeStamp() + " " + row.name + ": memSize = " + (row.memSize / (1024*1024)) + 
-								"MB, diskSize " + row.diskSize + ", numPartitions = " + row.numPartitions + "-" + row.numCachedPartitions, config)
-					}
-					else if (row.name.contains("rdd_"))
-					{
-						statusLog("SparkListener:", t0, getTimeStamp() + " " + row.name + " processed!", config)
-					}
-				})
-			}
-		});
-	}
+		override def onStageCompleted(stageCompleted: SparkListenerStageCompleted) 
+		{
+			val map = stageCompleted.stageInfo.rddInfos
+			map.foreach(row => {
+				if (row.isCached)
+				{	
+					statusLog("SparkListener:", t0, getTimeStamp() + " " + row.name + ": memSize = " + (row.memSize / (1024*1024)) + 
+							"MB, diskSize " + row.diskSize + ", numPartitions = " + row.numPartitions + "-" + row.numCachedPartitions, config)
+				}
+				else if (row.name.contains("rdd_"))
+				{
+					statusLog("SparkListener:", t0, getTimeStamp() + " " + row.name + " processed!", config)
+				}
+			})
+		}
+	});
 	//////////////////////////////////////////////////////////////////////////
 	if (part == 1)
 	{
@@ -1280,7 +1278,10 @@ def main(args: Array[String])
 		inputFileNames.foreach(println)
 		
 		val inputData = sc.parallelize(inputFileNames, inputFileNames.size)
+		inputData.setName("rdd_inputData")
 		val vcf = inputData.map(x => variantCall(x, bcConfig.value)).flatMap(x=> getVCF(x._1, bcConfig.value))
+		vcf.cache()
+		vcf.setName("rdd_vc")
 		writeVCF(vcf.distinct.sortByKey().collect, config)
 	}
 	//////////////////////////////////////////////////////////////////////////
