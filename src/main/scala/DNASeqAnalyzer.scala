@@ -19,6 +19,8 @@ import org.apache.spark.SparkContext._
 import org.apache.spark.SparkConf
 import org.apache.spark.scheduler._
 import sys.process._
+import org.apache.log4j.Logger
+import org.apache.log4j.Level
 
 import java.io._
 import java.nio.file.{Paths, Files}
@@ -140,7 +142,7 @@ def bwaRun (x: String, config: Configuration) : Array[(Long, Int)] =
 	)
 	command_str ! logger;
 	
-	dbgLog("bwa/" + x, t0, "2\t" + "bwa (size = " + (new File(getBinToolsDirPath(config) + "bwa").length) + 
+	dbgLog("bwa/" + x, t0, "2a\t" + "bwa (size = " + (new File(getBinToolsDirPath(config) + "bwa").length) + 
 		") mem completed for %s -> Number of key value pairs = %d".format(x, writerMap.size), config)
 	new File(fqFileName).delete()
 	
@@ -149,6 +151,7 @@ def bwaRun (x: String, config: Configuration) : Array[(Long, Int)] =
 	parMap.tasksupport = new ForkJoinTaskSupport(new scala.concurrent.forkjoin.ForkJoinPool(nThreads))
 	val arr = parMap.map{case (k, content) => (k, content.split('\n').size, new GzipCompressor(content.toString).compress)}.toArray
 	val retArr = new Array[(Long, Int)](arr.size)
+	dbgLog("bwa/" + x, t0, "2b\tCompressed the data.", config)
 	
 	if (!mtFileWrite)
 	{
@@ -159,14 +162,13 @@ def bwaRun (x: String, config: Configuration) : Array[(Long, Int)] =
 			retArr(i) = (arr(i)._1, arr(i)._2)
 		}
 		bfWriter.close
-		dbgLog("bwa/" + x, t0, "3a\t" + "Content written to binary file writer", config)
 		
 		if (config.getMode() != "local")
 		{
 			new File(config.getTmpFolder + ".cmp-" + x + ".crc").delete
 			hdfsManager.upload("cmp-" + x, config.getTmpFolder, config.getOutputFolder + "bwaOut/")
 		}
-		dbgLog("bwa/" + x, t0, "3b\t" + "Content uploaded to the HDFS", config)
+		dbgLog("bwa/" + x, t0, "3\t" + "Content uploaded to the HDFS", config)
 	}
 	else
 	{
@@ -204,7 +206,10 @@ def bwaRun (x: String, config: Configuration) : Array[(Long, Int)] =
 						new File(config.getTmpFolder + ".cmp" + thread + "-" + x + ".crc").delete
 						hdfsManager.upload(fileNames(thread), config.getTmpFolder(), config.getOutputFolder + "bwaOut/")
 					}
-					dbgLog("bwa/" + x, t0, "3b\t" + "File " + fileNames(thread) + " uploaded to the HDFS", config)
+					fileNames(thread).synchronized
+					{
+						dbgLog("bwa/" + x, t0, "3b\t" + "File " + fileNames(thread) + " uploaded to the HDFS", config)
+					}
 				}
 			}
 			threadArray(thread).start
@@ -312,7 +317,7 @@ def getRegion(chrRegion: Integer, samRecordsZipped: Array[Array[Byte]], config: 
 		var sb = new StringBuilder(readDictFile(config))
 		var count = 0
 		var badLines = 0
-		val limit = 5000
+		val limit = 10000
 		for (sr <- samRecordsZipped)
 		{
 			sb.append(new GzipDecompressor(sr).decompress)
@@ -1126,6 +1131,10 @@ def main(args: Array[String])
 	val bcConfig = sc.broadcast(config)
 	val hdfsManager = new HDFSManager
 	
+	// Comment these two lines if you want to see more verbose messages from Spark
+	Logger.getLogger("org").setLevel(Level.OFF);
+	Logger.getLogger("akka").setLevel(Level.OFF);
+	
 	config.print() 
 	
 	if (part == 1)
@@ -1145,6 +1154,37 @@ def main(args: Array[String])
 	
 	var t0 = System.currentTimeMillis
 	val numOfRegions = config.getNumRegions.toInt
+	if (part < 3)
+	{
+		sc.addSparkListener(new SparkListener() 
+		{
+			override def onApplicationStart(applicationStart: SparkListenerApplicationStart) 
+			{
+				statusLog("SparkListener:", t0, getTimeStamp() + " Spark ApplicationStart: " + applicationStart.appName + "\n", config)
+			}
+
+			override def onApplicationEnd(applicationEnd: SparkListenerApplicationEnd) 
+			{
+				statusLog("SparkListener:", t0, getTimeStamp() + " Spark ApplicationEnd: " + applicationEnd.time + "\n", config)
+			}
+
+			override def onStageCompleted(stageCompleted: SparkListenerStageCompleted) 
+			{
+				val map = stageCompleted.stageInfo.rddInfos
+				map.foreach(row => {
+					if (row.isCached)
+					{	
+						statusLog("SparkListener:", t0, getTimeStamp() + " " + row.name + ": memSize = " + (row.memSize / (1024*1024)) + 
+								"MB, diskSize " + row.diskSize + ", numPartitions = " + row.numPartitions + "-" + row.numCachedPartitions, config)
+					}
+					else if (row.name.contains("rdd_"))
+					{
+						statusLog("SparkListener:", t0, getTimeStamp() + " " + row.name + " processed!", config)
+					}
+				})
+			}
+		});
+	}
 	//////////////////////////////////////////////////////////////////////////
 	if (part == 1)
 	{
@@ -1187,8 +1227,6 @@ def main(args: Array[String])
 		var chrNumber = 0
 		var numOfRegions = 1
 		var prevChrNumber = 0
-		//
-		var sb = new StringBuilder
 		for (e <- chrPositionsLong.collect)
 		{
 			val chrPos = e._1
@@ -1197,10 +1235,6 @@ def main(args: Array[String])
 			
 			if ((count > elsPerRegion) || (chrNumber != prevChrNumber))
 			{
-				//
-				//writeWholeFile(config.getOutputFolder + "dbg/" + curRegion, sb.toString, config)
-				//sb = new StringBuilder
-				//
 				count = 0
 				curRegion += 1
 				numOfRegions += 1
@@ -1209,8 +1243,6 @@ def main(args: Array[String])
 			prevChrNumber = chrNumber
 			count += nReads
 			regionsMap(chrPos) = curRegion
-			//
-			//sb.append(chrPos + ":" + curRegion + "\n")
 		}	
 		statusLog("NumOfRegions:", t0, numOfRegions.toString, config)
 		//System.exit(1)
@@ -1226,7 +1258,7 @@ def main(args: Array[String])
 		rdd.persist(MEMORY_AND_DISK_SER)
 		rdd.setName("rdd_bam_and_bed")
 		
-		sb = new StringBuilder
+		val sb = new StringBuilder
 		for (e <- rdd.sortBy(_._2).collect)
 			sb.append(e._1 + " -> " + e._2 + "\n")
 		makeDirIfRequired(config.getOutputFolder + "log", config)
