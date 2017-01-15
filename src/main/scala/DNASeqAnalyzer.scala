@@ -64,6 +64,9 @@ final val downloadNeededFiles = false
 // Compression and reading of HDFS files
 final val unzipBWAInputDirectly = false
 final val readLBInputDirectly = true
+// Optional stages
+final val doIndelRealignment = false
+final val doPrintReads = false
 
 final val SF = 1e12.toLong
 //////////////////////////////////////////////////////////////////////////////
@@ -563,58 +566,56 @@ def processBAM(chrRegion: String, config: Configuration) : Integer =
 	if (config.getMode != "local")
 	{
 		if (writeToLog == true)
-			hdfsManager.create(config.getOutputFolder + "log/" + "region_" + chrRegion)
-			
+			hdfsManager.create(config.getOutputFolder + "log/vc/" + "region_" + chrRegion)
+		
 		if (!(new File(config.getTmpFolder).exists))
 			new File(config.getTmpFolder).mkdirs()
 		
-		dbgLog("region_" + chrRegion, t0, "2g\tDownloading bam and bed files to the local directory...", config)
 		hdfsManager.download(chrRegion + "-p1.bam", config.getOutputFolder + "bam/", config.getTmpFolder, false)
 		hdfsManager.download(chrRegion + ".bed", config.getOutputFolder + "bed/", config.getTmpFolder, false)
-		dbgLog("region_" + chrRegion, t0, "2h\tCompleted download of bam and bed to the local directory!", config)
-		if (downloadNeededFiles)
+		dbgLog("vc/region_" + chrRegion, t0, "1\tDownloaded bam and bed files to the local directory!", config)
+	}
+
+	val f = new File(tmpFileBase + ".bed");
+	if (!(f.exists() && !f.isDirectory())) 
+		dbgLog("vc/region_" + chrRegion, t0, "#-\tbed file does not exist in the tmp directory!!", config)
+	
+	if ((config.getMode != "local") && downloadNeededFiles)
+	{
+		dbgLog("vc/region_" + chrRegion, t0, "download\tDownloading vcf tools", config)
+		downloadVCFTools(config)
+	}
+	
+	try 
+	{
+		picardPreprocess(tmpFileBase, config)
+		if ((config.getMode != "local") && downloadNeededFiles)
 		{
-			dbgLog("region_" + chrRegion, t0, "*\tDownloading tools", config)
-			downloadVCFTools(config)
+			dbgLog("vc/region_" + chrRegion, t0, "download\tDownloading ref files for variant calling", config)
+			downloadVCFRefFiles("dlvcf/region_" + chrRegion, config)
+		}
+		if (doIndelRealignment)
+			indelRealignment(tmpFileBase, t0, chrRegion, config)
+		baseQualityScoreRecalibration(tmpFileBase, t0, chrRegion, config)
+		dnaVariantCalling(tmpFileBase, t0, chrRegion, config)
+		
+		if (config.getMode != "local")
+		{
+			new File(config.getTmpFolder() + "." + chrRegion + ".vcf.crc").delete()
+			hdfsManager.upload(chrRegion + ".vcf", config.getTmpFolder, config.getOutputFolder)
+		}
+		
+		dbgLog("vc/region_" + chrRegion, t0, "vcf\tOutput written to vcf file", config)
+		return 0
+	} 
+	catch 
+	{
+		case e: Exception => {
+			dbgLog("vc/region_" + chrRegion, t0, "exception\tAn exception occurred: " + ExceptionUtils.getStackTrace(e), config)
+			statusLog("Variant call error:", t0, "Variant calling failed for " + chrRegion, config)
+			return 1 
 		}
 	}
-	
-	var f = new File(tmpFileBase + "-p1.bam");
-	if(f.exists() && !f.isDirectory()) 
-		dbgLog("region_" + chrRegion, t0, "*+\tBAM file does exist in the tmp directory!", config)
-	else
-		dbgLog("region_" + chrRegion, t0, "*-\tBAM file does not exist in the tmp directory!", config)
-	
-	f = new File(tmpFileBase + ".bed");
-	if(f.exists() && !f.isDirectory()) 
-		dbgLog("region_" + chrRegion, t0, "#+\tbed file does exist in the tmp directory!!", config)
-	else
-		dbgLog("region_" + chrRegion, t0, "#-\tbed file does not exist in the tmp directory!!", config)
-	
-	dbgLog("region_" + chrRegion, t0, "3\tPicard processing started", config)
-	var cmdRes = picardPreprocess(tmpFileBase, config)
-	if (downloadNeededFiles)
-	{
-		dbgLog("region_" + chrRegion, t0, "*\tDownloading VCF ref files", config)
-		downloadVCFRefFiles("region_" + chrRegion, config)
-	}
-	cmdRes += indelRealignment(tmpFileBase, t0, chrRegion, config)
-	if (downloadNeededFiles)
-	{
-		dbgLog("region_" + chrRegion, t0, "*\tDownloading snp file", config)
-		downloadVCFSnpFile("region_" + chrRegion, config)
-	}
-	cmdRes += baseQualityScoreRecalibration(tmpFileBase, t0, chrRegion, config)
-	cmdRes += DnaVariantCalling(tmpFileBase, t0, chrRegion, config)
-	
-	if (config.getMode() != "local")
-	{
-		new File(config.getTmpFolder() + "." + chrRegion + ".vcf.crc").delete()
-		hdfsManager.upload(chrRegion + ".vcf", config.getTmpFolder(), config.getOutputFolder())
-	}
-	
-	dbgLog("region_" + chrRegion, t0, "9\tOutput written to vcf file", config)
-	return cmdRes
 }
 
 def variantCall (chrRegion: String, config: Configuration) : (String, Integer) =
@@ -622,134 +623,150 @@ def variantCall (chrRegion: String, config: Configuration) : (String, Integer) =
 	return (chrRegion, processBAM(chrRegion, config))
 }
 
-def picardPreprocess(tmpFileBase: String, config: Configuration) : Integer =
+def picardPreprocess(tmpFileBase: String, config: Configuration)
 {
 	val toolsFolder = getToolsDirPath(config)
 	val tmpOut1 = tmpFileBase + "-p1.bam"
 	val tmpOut2 = tmpFileBase + "-p2.bam"
 	val MemString = config.getExecMemX()
+	val chrRegion = getFileNameFromPath(tmpFileBase)
+	val logFileName = "vc/region_" + chrRegion
 	
 	var t0 = System.currentTimeMillis
 	
-	var cmdStr = "java " + MemString + " -jar " + toolsFolder + "CleanSam.jar INPUT=" + tmpOut1 + " OUTPUT=" + tmpOut2
-	var cmdRes = cmdStr.!
+	dbgLog(logFileName, t0, "picard\tPicard processing started", config)
 	
-	val bamOut = tmpFileBase + ".bam"
-	val tmpMetrics = tmpFileBase + "-metrics.txt"
+	try
+	{
+		var cmdStr = "java " + MemString + " -jar " + toolsFolder + "CleanSam.jar INPUT=" + tmpOut1 + " OUTPUT=" + tmpOut2
+		cmdStr.!!
+		
+		val bamOut = tmpFileBase + ".bam"
+		val tmpMetrics = tmpFileBase + "-metrics.txt"
+		
+		cmdStr = "java " + MemString + " -jar " + toolsFolder + "MarkDuplicates.jar INPUT=" + tmpOut2 + " OUTPUT=" + bamOut +
+			" METRICS_FILE=" + tmpMetrics + " CREATE_INDEX=true";
+		cmdStr.!!
+		
+		// Hamid - Save output of picardPreprocessing
+		if (saveAllStages)
+			uploadFileToOutput(bamOut, "picardOutput", false, config)
+		
+		// Delete temporary files
+		dbgLog(logFileName, t0, "picard\tDeleting files " + tmpOut1 + ", " + tmpOut2 + ", and " + tmpMetrics, config)
+		new File(tmpMetrics).delete
+	}
+	catch 
+	{
+		case e: Exception => {
+			dbgLog(logFileName, t0, "exception\tAn exception occurred: " + ExceptionUtils.getStackTrace(e), config)
+			statusLog("Picard error:", t0, "Picard failed for " + chrRegion, config)
+		}
+	}
 	
-	cmdStr = "java " + MemString + " -jar " + toolsFolder + "MarkDuplicates.jar INPUT=" + tmpOut2 + " OUTPUT=" + bamOut +
-		" METRICS_FILE=" + tmpMetrics + " CREATE_INDEX=true";
-	cmdRes = cmdStr.!
-	
-	// Hamid - Save output of picardPreprocessing
-	if (saveAllStages)
-		uploadFileToOutput(bamOut, "picardOutput", false, config)
-	
-	// Delete temporary files
-	new File(tmpOut1).delete()
-	new File(tmpOut2).delete()
-	new File(tmpMetrics).delete()
-	
-	return cmdRes
+	new File(tmpOut1).delete
+	new File(tmpOut2).delete
 }
 
-def indelRealignment(tmpFileBase: String, t0: Long, chrRegion: String, config: Configuration) : Integer =
+def indelRealignment(tmpFileBase: String, t0: Long, chrRegion: String, config: Configuration) =
 {
 	val toolsFolder = getToolsDirPath(config)
-	val knownIndel = getIndelFilePath(config)
 	val tmpFile1 = tmpFileBase + "-2.bam"
 	val preprocess = tmpFileBase + ".bam"
 	val targets = tmpFileBase + ".intervals"
 	val MemString = config.getExecMemX()
 	val regionStr = " -L " + tmpFileBase + ".bed"
-	val indelStr = if (config.getUseKnownIndels().toBoolean) (" -known " + knownIndel) else ""; 
+	val indelStr = "" 
 	
 	// Realigner target creator
 	var cmdStr = "java " + MemString + " " + config.getGATKopts + " -jar " + toolsFolder + "GenomeAnalysisTK.jar -T RealignerTargetCreator -nt " + 
 	config.getNumThreads() + " -R " + getRefFilePath(config) + " -I " + preprocess + indelStr + " -o " +
 		targets + regionStr
-	dbgLog("region_" + chrRegion, t0, "4\t" + cmdStr, config)
-	var cmdRes = cmdStr.!
+	dbgLog("vc/region_" + chrRegion, t0, "indel1\t" + cmdStr, config)
+	cmdStr.!!
 	
 	// Indel realigner
 	cmdStr = "java " + MemString + " " + config.getGATKopts + " -jar " + toolsFolder + "GenomeAnalysisTK.jar -T IndelRealigner -R " + 
 		getRefFilePath(config) + " -I " + preprocess + " -targetIntervals " + targets + indelStr + " -o " + tmpFile1 + regionStr
-	dbgLog("region_" + chrRegion, t0, "5\t" + cmdStr, config)
-	cmdRes += cmdStr.!
+	dbgLog("vc/region_" + chrRegion, t0, "indel2\t" + cmdStr, config)
+	cmdStr.!!
 	
 	// Hamid - Save output of indelRealignment
 	if (saveAllStages)
 		uploadFileToOutput(tmpFile1, "indelOutput", false, config)
 	
 	// Delete temporary files
-	new File(preprocess).delete()
-	new File(preprocess.replace(".bam", ".bai")).delete()
-	new File(targets).delete()
-	
-	return cmdRes
+	dbgLog("vc/region_" + chrRegion, t0, "indel3\tDeleting files " + preprocess + " and " + targets, config)
+	new File(preprocess).delete
+	new File(preprocess.replace(".bam", ".bai")).delete
+	new File(targets).delete
 }
-
-def baseQualityScoreRecalibration(tmpFileBase: String, t0: Long, chrRegion: String, config: Configuration) : Integer =
+	
+def baseQualityScoreRecalibration(tmpFileBase: String, t0: Long, chrRegion: String, config: Configuration)
 {
 	val toolsFolder = getToolsDirPath(config)
-	val knownIndel = getIndelFilePath(config)
 	val knownSite = getSnpFilePath(config)
-	val tmpFile1 = tmpFileBase + "-2.bam"
+	val tmpFile1 = if (doIndelRealignment) (tmpFileBase + "-2.bam") else (tmpFileBase + ".bam")
 	val tmpFile2 = tmpFileBase + "-3.bam"
 	val table = tmpFileBase + ".table"
 	val MemString = config.getExecMemX()
 	val regionStr = " -L " + tmpFileBase + ".bed"
-	val indelStr = if (config.getUseKnownIndels().toBoolean) (" -knownSites " + knownIndel) else ""; 
+	val indelStr = "" 
 	
 	// Base recalibrator
 	var cmdStr = "java " + MemString + " " + config.getGATKopts + " -jar " + toolsFolder + "GenomeAnalysisTK.jar -T BaseRecalibrator -nct " + 
 		config.getNumThreads() + " -R " + getRefFilePath(config) + " -I " + tmpFile1 + " -o " + table + regionStr + 
 		" --disable_auto_index_creation_and_locking_when_reading_rods" + indelStr + " -knownSites " + knownSite
-	dbgLog("region_" + chrRegion, t0, "6\t" + cmdStr, config)
-	var cmdRes = cmdStr.!
+	dbgLog("vc/region_" + chrRegion, t0, "base1\t" + cmdStr, config)
+	cmdStr.!!
 
-	// Print reads
-	cmdStr = "java " + MemString + " " + config.getGATKopts + " -jar " + toolsFolder + "GenomeAnalysisTK.jar -T PrintReads -R " + 
-		getRefFilePath(config) + " -I " + tmpFile1 + " -o " + tmpFile2 + " -BQSR " + table + regionStr 
-	dbgLog("region_" + chrRegion, t0, "7\t" + cmdStr, config)
-	cmdRes += cmdStr.!
+	if (doPrintReads)
+	{
+		// Print reads
+		cmdStr = "java " + MemString + " " + config.getGATKopts + " -jar " + toolsFolder + "GenomeAnalysisTK.jar -T PrintReads -R " + 
+			getRefFilePath(config) + " -I " + tmpFile1 + " -o " + tmpFile2 + " -BQSR " + table + regionStr 
+		dbgLog("vc/region_" + chrRegion, t0, "base2\t" + cmdStr, config)
+		cmdStr.!!
 	
-	// Hamid - Save output of baseQualityScoreRecalibration
-	if (saveAllStages)
-		uploadFileToOutput(tmpFile2, "baseOutput", false, config)
+		// Hamid - Save output of baseQualityScoreRecalibration
+		if (saveAllStages)
+			uploadFileToOutput(tmpFile2, "baseOutput", false, config)
 	
-	// Delete temporary files
-	new File(tmpFile1).delete()
-	new File(tmpFile1.replace(".bam", ".bai")).delete()
-	new File(table).delete()
-	
-	return cmdRes
+		// Delete temporary files
+		dbgLog("vc/region_" + chrRegion, t0, "base3(doPrintReads)\tDeleting files " + tmpFile1 + " and " + table, config)
+		new File(tmpFile1).delete
+		new File(tmpFile1.replace(".bam", ".bai")).delete
+		new File(table).delete
+	}
 }
 
-def DnaVariantCalling(tmpFileBase: String, t0: Long, chrRegion: String, config: Configuration) : Integer =
+def dnaVariantCalling(tmpFileBase: String, t0: Long, chrRegion: String, config: Configuration)
 {
 	val toolsFolder = getToolsDirPath(config)
-	val tmpFile2 = tmpFileBase + "-3.bam"
+	val tmpFile2 = if (doPrintReads) (tmpFileBase + "-3.bam") else if (doIndelRealignment) (tmpFileBase + "-2.bam") else (tmpFileBase + ".bam")
 	val snps = tmpFileBase + ".vcf"
+	val bqsrStr = if (doPrintReads) "" else (" -BQSR " + tmpFileBase + ".table ")
 	val MemString = config.getExecMemX()
 	val regionStr = " -L " + tmpFileBase + ".bed"
 	
 	// Haplotype caller
 	var cmdStr = "java " + MemString + " " + config.getGATKopts + " -jar " + toolsFolder + "GenomeAnalysisTK.jar -T HaplotypeCaller -nct " + 
-		config.getNumThreads() + " -R " + getRefFilePath(config) + " -I " + tmpFile2 + " --genotyping_mode DISCOVERY -o " + snps + 
+		config.getNumThreads() + " -R " + getRefFilePath(config) + " -I " + tmpFile2 + bqsrStr + " --genotyping_mode DISCOVERY -o " + snps + 
 		" -stand_call_conf " + config.getSCC() + " -stand_emit_conf " + config.getSEC() + regionStr + 
 		" --no_cmdline_in_header --disable_auto_index_creation_and_locking_when_reading_rods"
-	dbgLog("region_" + chrRegion, t0, "8\t" + cmdStr, config)
-	var cmdRes = cmdStr.!
+	dbgLog("vc/region_" + chrRegion, t0, "haplo1\t" + cmdStr, config)
+	cmdStr.!!
 	
 	// Delete temporary files
+	dbgLog("vc/region_" + chrRegion, t0, "haplo2\tDeleting files " + tmpFile2 + ", " + (tmpFileBase + ".bed") +
+		(if (!doPrintReads) (" and " + tmpFileBase + ".table") else "."), config)
 	new File(tmpFile2).delete()
-	new File(tmpFile2.replace(".bam", ".bai")).delete()
-	new File(tmpFileBase + ".bed").delete()
-	
-	return cmdRes
+	new File(tmpFile2.replace(".bam", ".bai")).delete
+	new File(tmpFileBase + ".bed").delete
+	if (!doPrintReads)
+		new File(tmpFileBase + ".table").delete
 }
-
+	
 def getVCF(chrRegion: String, config: Configuration) : Array[((Integer, Integer), String)] =
 {
 	var a = scala.collection.mutable.ArrayBuffer.empty[((Integer, Integer), String)]
