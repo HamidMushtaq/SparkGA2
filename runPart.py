@@ -35,7 +35,7 @@ outputFolder = doc.getElementsByTagName("outputFolder")[0].firstChild.data
 tmpFolder = doc.getElementsByTagName("tmpFolder")[0].firstChild.data
 # Parameters for this part
 numInstances = doc.getElementsByTagName("numInstances" + partNumber)[0].firstChild.data
-numThreads = doc.getElementsByTagName("numTasks2")[0].firstChild.data if (int(partNumber) == 2) else "1"
+numTasks = doc.getElementsByTagName("numTasks" + partNumber)[0].firstChild.data
 exe_mem = doc.getElementsByTagName("execMemGB" + partNumber)[0].firstChild.data + "g"
 double_exe_mem = str(int(doc.getElementsByTagName("execMemGB" + partNumber)[0].firstChild.data) * 2) + "g"
 driver_mem = doc.getElementsByTagName("driverMemGB" + partNumber)[0].firstChild.data + "g"
@@ -69,7 +69,7 @@ def executeHadoop(part, ni, em, extra_param):
 	"--jars lib/htsjdk-1.143.jar " + \
 	"--class \"DNASeqAnalyzer\" --master " + diff_str + " " + \
 	"--driver-memory " + driver_mem + " --executor-memory " + em + " " + \
-	"--num-executors " + ni + " --executor-cores " + numThreads + " " + \
+	"--num-executors " + ni + " --executor-cores " + numTasks + " " + \
 	exeName + " " + os.path.basename(configFilePath) + " " + str(part) + extra_param
 	
 	print cmdStr

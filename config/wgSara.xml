@@ -17,23 +17,26 @@
 	<ignoreList>MT</ignoreList>
 	<nodeMemoryGB>128</nodeMemoryGB>
 	<numNodes>4</numNodes>
-	<numRegions>1024</numRegions>
+	<numRegions>1152</numRegions>
 	<!-- ===================== -->
 	<!-- parameters for part 1 -->
-	<execMemGB1>16</execMemGB1> 						
-	<driverMemGB1>4</driverMemGB1> 					
-	<numInstances1>216</numInstances1> 	
+	<execMemGB1>48</execMemGB1> 						
+	<driverMemGB1>2</driverMemGB1> 					
+	<numInstances1>80</numInstances1> 	
 	<numThreads1>4</numThreads1>
+	<numTasks1>3</numTasks1>
 	<!-- parameters for part 2 -->
-	<execMemGB2>10</execMemGB2> 						
-	<driverMemGB2>4</driverMemGB2> 					
-	<numInstances2>352</numInstances2> 	
-	<numTasks2>1</numTasks2>
+	<execMemGB2>24</execMemGB2> 						
+	<driverMemGB2>2</driverMemGB2> 					
+	<numInstances2>160</numInstances2> 	
+	<numTasks2>4</numTasks2>
 	<!-- parameters for part 3 -->
-	<execMemGB3>10</execMemGB3> 						
-	<driverMemGB3>10</driverMemGB3> 					
-	<numInstances3>352</numInstances3> 	
+	<execMemGB3>48</execMemGB3>
+	<vcMemGB>8</vcMemGB> 						
+	<driverMemGB3>4</driverMemGB3> 					
+	<numInstances3>80</numInstances3> 	
 	<numThreads3>4</numThreads3>
+	<numTasks3>5</numTasks3>
 	<!-- ===================== -->
 	<standEC>10</standEC>
 	<standCC>30</standCC>
