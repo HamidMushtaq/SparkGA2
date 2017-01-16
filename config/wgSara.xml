@@ -23,7 +23,7 @@
 	<execMemGB1>48</execMemGB1> 						
 	<driverMemGB1>2</driverMemGB1> 					
 	<numInstances1>80</numInstances1> 	
-	<numThreads1>4</numThreads1>
+	<numThreads1>8</numThreads1>
 	<numTasks1>3</numTasks1>
 	<!-- parameters for part 2 -->
 	<execMemGB2>24</execMemGB2> 						
