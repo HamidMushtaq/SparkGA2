@@ -604,8 +604,7 @@ def variantCall(chrRegion: String, config: Configuration) : Array[((Integer, Int
 		if (config.getMode != "local")
 		{
 			new File(config.getTmpFolder + "." + chrRegion + ".vcf.crc").delete
-			hdfsManager.upload(chrRegion + ".vcf", config.getTmpFolder, config.getOutputFolder)
-			new File(config.getTmpFolder + chrRegion + ".vcf").delete
+			uploadFileToOutput(config.getTmpFolder + chrRegion + ".vcf", "vcOut", true, config)
 		}
 		
 		dbgLog("vc/region_" + chrRegion, t0, "vcf\tOutput written to vcf file", config)
