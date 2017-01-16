@@ -557,7 +557,7 @@ def makeDirIfRequired(dir: String, config: Configuration)
 	}			
 }
 
-def processBAM(chrRegion: String, config: Configuration) : Integer =
+def variantCall(chrRegion: String, config: Configuration) : Array[((Integer, Integer), String)] =
 {
 	val tmpFileBase = config.getTmpFolder + chrRegion
 	var t0 = System.currentTimeMillis
@@ -599,28 +599,26 @@ def processBAM(chrRegion: String, config: Configuration) : Integer =
 		baseQualityScoreRecalibration(tmpFileBase, t0, chrRegion, config)
 		dnaVariantCalling(tmpFileBase, t0, chrRegion, config)
 		
+		val retArray = getVCF(chrRegion, config)
+		
 		if (config.getMode != "local")
 		{
-			new File(config.getTmpFolder() + "." + chrRegion + ".vcf.crc").delete()
+			new File(config.getTmpFolder + "." + chrRegion + ".vcf.crc").delete
 			hdfsManager.upload(chrRegion + ".vcf", config.getTmpFolder, config.getOutputFolder)
+			new File(config.getTmpFolder + chrRegion + ".vcf").delete
 		}
 		
 		dbgLog("vc/region_" + chrRegion, t0, "vcf\tOutput written to vcf file", config)
-		return 0
+		return retArray
 	} 
 	catch 
 	{
 		case e: Exception => {
 			dbgLog("vc/region_" + chrRegion, t0, "exception\tAn exception occurred: " + ExceptionUtils.getStackTrace(e), config)
 			statusLog("Variant call error:", t0, "Variant calling failed for " + chrRegion, config)
-			return 1 
+			return null
 		}
 	}
-}
-
-def variantCall (chrRegion: String, config: Configuration) : (String, Integer) =
-{
-	return (chrRegion, processBAM(chrRegion, config))
 }
 
 def picardPreprocess(tmpFileBase: String, config: Configuration)
@@ -772,10 +770,6 @@ def getVCF(chrRegion: String, config: Configuration) : Array[((Integer, Integer)
 	var a = scala.collection.mutable.ArrayBuffer.empty[((Integer, Integer), String)]
 	var fileName = config.getTmpFolder() + chrRegion + ".vcf"
 	var commentPos = 0
-	val hdfsManager = new HDFSManager
-	
-	if (config.getMode() != "local")
-		hdfsManager.download(chrRegion + ".vcf", config.getOutputFolder, config.getTmpFolder, false)
 	
 	if (!Files.exists(Paths.get(fileName)))
 		return a.toArray
@@ -805,9 +799,7 @@ def getVCF(chrRegion: String, config: Configuration) : Array[((Integer, Integer)
 		}
 	}
 	
-	// Delete temporary files
-	if (config.getMode != "local")
-		new File(fileName).delete()
+	// Delete temporary file
 	new File(fileName + ".idx").delete()
 	
 	return a.toArray
@@ -1296,8 +1288,7 @@ def main(args: Array[String])
 		
 		val inputData = sc.parallelize(inputFileNames, inputFileNames.size)
 		inputData.setName("rdd_inputData")
-		val vcf = inputData.map(x => variantCall(x, bcConfig.value)).flatMap(x=> getVCF(x._1, bcConfig.value))
-		vcf.cache()
+		val vcf = inputData.flatMap(x => variantCall(x, bcConfig.value))
 		vcf.setName("rdd_vc")
 		writeVCF(vcf.distinct.sortByKey().collect, config)
 	}
