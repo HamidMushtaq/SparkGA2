@@ -5,5 +5,5 @@
 [warn] two warnings found
 [info] Packaging C:\sparkga\target\scala-2.11\dnaseqanalyzer_2.11-1.0.jar ...
 [info] Done packaging.
-[success] Total time: 7 s, completed Jan 16, 2017 8:46:44 AM
+[success] Total time: 8 s, completed Jan 16, 2017 10:05:58 AM
 Java HotSpot(TM) 64-Bit Server VM warning: ignoring option MaxPermSize=256m; support was removed in 8.0

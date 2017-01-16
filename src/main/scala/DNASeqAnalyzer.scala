@@ -804,21 +804,6 @@ def getVCF(chrRegion: String, config: Configuration) : Array[((Integer, Integer)
 	return a.toArray
 }
 	
-def writeVCF(a: Array[((Integer, Integer), String)], config: Configuration) =
-{
-	var fileName = if (config.getMode() != "local") config.getTmpFolder() + "sparkCombined.vcf" 
-		else config.getOutputFolder() + "sparkCombined.vcf";
-	val hdfsManager = new HDFSManager
- 
-	val writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(fileName)))
-	for(i <- 0 until a.size)
-		writer.write(a(i)._2 + "\n")
-	writer.close()
-
-	if (config.getMode() != "local")
-		hdfsManager.upload("sparkCombined.vcf", config.getTmpFolder(), config.getOutputFolder())
-}
-
 def getInputFileNames(dir: String, config: Configuration) : Array[String] = 
 {
 	val mode = config.getMode
@@ -1289,7 +1274,7 @@ def main(args: Array[String])
 		inputData.setName("rdd_inputData")
 		val vcf = inputData.flatMap(x => variantCall(x, bcConfig.value))
 		vcf.setName("rdd_vc")
-		writeVCF(vcf.distinct.sortByKey().collect, config)
+		vcf.distinct.sortByKey().map(_._2).coalesce(1, true).saveAsTextFile(config.getOutputFolder + "combinedVCF")
 	}
 	//////////////////////////////////////////////////////////////////////////
 	var et = (System.currentTimeMillis - t0) / 1000
