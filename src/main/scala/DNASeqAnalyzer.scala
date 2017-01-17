@@ -1263,6 +1263,10 @@ def main(args: Array[String])
 		}
 		//
 		
+		val combinedVCFPath = config.getOutputFolder + "combinedVCF"
+		if (hdfsManager.exists(combinedVCFPath))
+			hdfsManager.remove(combinedVCFPath)
+		
 		var inputFileNames: Array[String] = null
 		if (config.getMode != "local") 
 			inputFileNames = getInputFileNames(config.getOutputFolder + "bed/", config).map(x => x.replace(".bed", ""))
@@ -1274,7 +1278,7 @@ def main(args: Array[String])
 		inputData.setName("rdd_inputData")
 		val vcf = inputData.flatMap(x => variantCall(x, bcConfig.value))
 		vcf.setName("rdd_vc")
-		vcf.distinct.sortByKey().map(_._2).coalesce(1, true).saveAsTextFile(config.getOutputFolder + "combinedVCF")
+		vcf.distinct.sortByKey().map(_._2).coalesce(1, true).saveAsTextFile(combinedVCFPath)
 	}
 	//////////////////////////////////////////////////////////////////////////
 	var et = (System.currentTimeMillis - t0) / 1000
