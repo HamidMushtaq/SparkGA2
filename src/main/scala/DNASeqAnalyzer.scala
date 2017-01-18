@@ -320,7 +320,7 @@ def getRegion(chrRegion: Integer, samRecordsZipped: Array[Array[Byte]], config: 
 		var sb = new StringBuilder(readDictFile(config))
 		var count = 0
 		var badLines = 0
-		val limit = 10000
+		val limit = 5000
 		for (sr <- samRecordsZipped)
 		{
 			sb.append(new GzipDecompressor(sr).decompress)
