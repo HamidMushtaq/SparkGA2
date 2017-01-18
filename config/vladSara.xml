@@ -5,26 +5,26 @@
 	<snpPath>filesB37/dbsnp_138.b37.vcf</snpPath>
 	<indelPath>filesB37/1000G_phase1.indels.b37.vcf</indelPath>
 	<exomePath></exomePath>
-	<inputFolder>vlad_720</inputFolder>
+	<inputFolder>vlad_576</inputFolder>
 	<outputFolder>outputb4</outputFolder> 
 	<toolsFolder>power8tools</toolsFolder>
 	<tmpFolder>./</tmpFolder>
 	<sfFolder>/disk1/local/users/zalars/bsparkFiles</sfFolder>
 	<hadoopInstall>$HADOOP_INSTALL</hadoopInstall>
 	<rgString>@RG\tID:sample_lane\tSM:sample\tPL:illumina\tLB:sample\tPU:lane</rgString>
-	<extraBWAParams>-M</extraBWAParams>
+	<extraBWAParams>-p</extraBWAParams>
 	<gatkOpts>-XX:+AggressiveOpts</gatkOpts>
 	<ignoreList>MT</ignoreList>
 	<nodeMemoryGB>128</nodeMemoryGB>
 	<numNodes>4</numNodes>
-	<numRegions>1152</numRegions>
+	<numRegions>1024</numRegions>
 	<!-- ===================== -->
 	<!-- parameters for part 1 -->
 	<execMemGB1>48</execMemGB1> 						
 	<driverMemGB1>2</driverMemGB1> 					
 	<numInstances1>80</numInstances1> 	
-	<numThreads1>8</numThreads1>
-	<numTasks1>3</numTasks1>
+	<numThreads1>4</numThreads1>
+  <numTasks1>4</numTasks1>
 	<!-- parameters for part 2 -->
 	<execMemGB2>24</execMemGB2> 						
 	<driverMemGB2>2</driverMemGB2> 					
