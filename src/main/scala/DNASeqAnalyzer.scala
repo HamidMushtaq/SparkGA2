@@ -65,8 +65,8 @@ final val downloadNeededFiles = false
 final val unzipBWAInputDirectly = false
 final val readLBInputDirectly = true
 // Optional stages
-final val doIndelRealignment = false
-final val doPrintReads = false
+final val doIndelRealignment = true
+final val doPrintReads = true
 
 final val SF = 1e12.toLong
 //////////////////////////////////////////////////////////////////////////////
@@ -1111,14 +1111,11 @@ def main(args: Array[String])
 	else
 	{
 		conf.set("spark.shuffle.blockTransferService", "nio") 
+		if (compressRDDs)
+			conf.set("spark.rdd.compress","true")
 		conf.set("spark.network.timeout", "12000")
-		if (part == 1)
-		{
-			conf.set("spark.storage.memoryFraction", "0.1") // For older version of Spark
-			//conf.set("spark.memory.storageFraction", "0.1") // For Spark 1.6
-			//conf.set("spark.yarn.executor.memoryOverhead", "512")
-		}
 	}
+	conf.set("spark.driver.maxResultSize", "2g")
    
 	val sc = new SparkContext(conf)
 	val bcConfig = sc.broadcast(config)
