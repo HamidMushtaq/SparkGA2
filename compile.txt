@@ -1,3 +1,9 @@
 [info] Set current project to DNASeqAnalyzer (in build file:/D:/sparkga/)
-[success] Total time: 1 s, completed 20-jan-2017 18:54:53
+[info] Compiling 1 Scala source to D:\sparkga\target\scala-2.11\classes...
+[warn] there were 2 deprecation warning(s); re-run with -deprecation for details
+[warn] there were 1 feature warning(s); re-run with -feature for details
+[warn] two warnings found
+[info] Packaging D:\sparkga\target\scala-2.11\dnaseqanalyzer_2.11-1.0.jar ...
+[info] Done packaging.
+[success] Total time: 6 s, completed 20-jan-2017 20:05:52
 Java HotSpot(TM) 64-Bit Server VM warning: ignoring option MaxPermSize=256m; support was removed in 8.0

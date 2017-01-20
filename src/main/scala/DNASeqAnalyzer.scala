@@ -1240,10 +1240,11 @@ def main(args: Array[String])
 		val inputData = sc.parallelize(inputFileNames, inputFileNames.size)
 		// RDD[(Int, Array[Byte])]
 		val chrToSamRecord1 = inputData.flatMap(x => getSamRecords(x, bcChrPosMap.value, bcConfig.value))
-		chrToSamRecord1.persist(MEMORY_AND_DISK_SER)
+			.mapValues(ab => Array(ab)).reduceByKey((a1, a2) => a1 ++ a2)
 		chrToSamRecord1.setName("rdd_chrToSamRecord1")
+		chrToSamRecord1.persist(MEMORY_AND_DISK_SER)
 		
-		val rdd = chrToSamRecord1.mapValues(ab => Array(ab)).reduceByKey((a1, a2) => a1 ++ a2).foreach(x => buildRegion(x._1, x._2, bcConfig.value))
+		val rdd = chrToSamRecord1.foreach(x => buildRegion(x._1, x._2, bcConfig.value))
 	}
 	else // (part == 3)
 	{
