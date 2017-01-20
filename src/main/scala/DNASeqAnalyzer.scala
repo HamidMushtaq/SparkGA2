@@ -1238,19 +1238,12 @@ def main(args: Array[String])
 		val bcChrPosMap = sc.broadcast(regionsMap)
 		val inputFileNames = getInputFileNames(if (config.getMode != "local") (config.getOutputFolder + "bwaOut") else config.getTmpFolder, config)
 		val inputData = sc.parallelize(inputFileNames, inputFileNames.size)
+		// RDD[(Int, Array[Byte])]
 		val chrToSamRecord1 = inputData.flatMap(x => getSamRecords(x, bcChrPosMap.value, bcConfig.value))
 		chrToSamRecord1.persist(MEMORY_AND_DISK_SER)
 		chrToSamRecord1.setName("rdd_chrToSamRecord1")
 		
-		val rdd = chrToSamRecord1.groupByKey.map(x => buildRegion(x._1, x._2.toArray, bcConfig.value))
-		rdd.persist(MEMORY_AND_DISK_SER)
-		rdd.setName("rdd_bam_and_bed")
-		
-		val sb = new StringBuilder
-		for (e <- rdd.sortBy(_._2).collect)
-			sb.append(e._1 + " -> " + e._2 + "\n")
-		makeDirIfRequired(config.getOutputFolder + "log", config)
-		writeWholeFile(config.getOutputFolder + "log/part2.txt", sb.toString, config)
+		val rdd = chrToSamRecord1.mapValues(ab => Array(ab)).reduceByKey((a1, a2) => a1 ++ a2).foreach(x => buildRegion(x._1, x._2, bcConfig.value))
 	}
 	else // (part == 3)
 	{
