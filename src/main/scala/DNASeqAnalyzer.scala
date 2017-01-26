@@ -65,8 +65,8 @@ final val downloadNeededFiles = false
 final val unzipBWAInputDirectly = false
 final val readLBInputDirectly = true
 // Optional stages
-final val doIndelRealignment = true
-final val doPrintReads = true
+final val doIndelRealignment = false
+final val doPrintReads = false
 
 final val SF = 1e12.toLong
 //////////////////////////////////////////////////////////////////////////////
@@ -378,7 +378,7 @@ def getRegion(chrRegion: Integer, samRecordsZipped: Array[Array[Byte]], config: 
 	dbgLog("getRegion/region_" + chrRegion, t0, "3\t" + samRecordsSorted.size + " reads sorted!", config)
 	return (chrRegion, samRecordsSorted)
 }
- 
+
 def createBAMAndBEDFiles(chrRegion: Integer, samRecordsSorted: Array[SAMRecord], config: Configuration) : (String, Int) = 
 {	
 	val tmpFileBase = config.getTmpFolder + chrRegion
@@ -392,6 +392,10 @@ def createBAMAndBEDFiles(chrRegion: Integer, samRecordsSorted: Array[SAMRecord],
 	
 	dbgLog("bam/region_" + chrRegion.toString(), t0, "2\tVC creating BAM file. Number of sam records = " + samRecordsSorted.size, config)
 	
+	var count = 0
+	val r = new ChromosomeRange()
+	var sam: SAMRecord = null 
+	var badLines = 0
 	val header = new SAMFileHeader()
 	header.setSequenceDictionary(config.getDict())
 	val outHeader = header.clone()
@@ -408,23 +412,33 @@ def createBAMAndBEDFiles(chrRegion: Integer, samRecordsSorted: Array[SAMRecord],
 	val writer = factory.makeBAMWriter(outHeader, true, new File(tmpOut1));
 	
 	val RGID = "GROUP1"
-	val r = new ChromosomeRange()
 	val input = new tudelft.utils.SAMRecordIterator(samRecordsSorted, header, r)
-	var count = 0
 	while(input.hasNext()) 
 	{
-		val sam = input.next()
-		/////////////////////////////////////////
-		sam.setAttribute(SAMTag.RG.name(), RGID)
-		/////////////////////////////////////////
-		writer.addAlignment(sam)
-		count += 1
+		try
+		{
+			sam = input.next()
+			/////////////////////////////////////////
+			sam.setAttribute(SAMTag.RG.name(), RGID)
+			/////////////////////////////////////////
+			writer.addAlignment(sam)
+			count += 1
+		}
+		catch 
+		{
+			case e: Exception =>  
+			{ 
+				dbgLog("bam/region_" + chrRegion.toString, t0, "*\tError\nSam =  " + sam, config)
+				statusLog("Create BAM error:", t0, "Encountered error in a line for region " + chrRegion, config)
+				badLines += 1
+			}
+		}
 	}
 	input.addLastChrRange()
 	val reads = input.getCount()
 	writer.close()
-	
-	dbgLog("bam/region_" + chrRegion.toString(), t0, "3\tMaking region file. There are " + count + " reads in total.", config)
+		
+	dbgLog("bam/region_" + chrRegion.toString(), t0, "3\tMaking region file. There are " + count + " reads in total. Bad lines = " + badLines, config)
 	var region: String = null 
 	makeRegionFile(tmpFileBase, r, config)
 	dbgLog("bam/region_" + chrRegion.toString(), t0, "4\tDone making the region file.", config)
