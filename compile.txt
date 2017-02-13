@@ -1,3 +1,0 @@
-[info] Set current project to DNASeqAnalyzer (in build file:/D:/sparkga/)
-[success] Total time: 4 s, completed 27-jan-2017 15:35:44
-Java HotSpot(TM) 64-Bit Server VM warning: ignoring option MaxPermSize=256m; support was removed in 8.0
