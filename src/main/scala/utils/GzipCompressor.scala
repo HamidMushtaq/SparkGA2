@@ -29,7 +29,7 @@ class GzipCompressor(data: String)
 		val bos = new ByteArrayOutputStream(data.length)
 		val gzip = new GZIPOutputStreamWithLevel(bos)
 		
-		gzip.setLevel(1)
+		gzip.setLevel(6)
 		gzip.write(data.getBytes)
 		gzip.close
 		

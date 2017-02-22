@@ -45,6 +45,7 @@ public class Configuration implements Serializable
 	private String numThreads;
 	private String ignoreList;
 	private String numRegions;
+	private String numRegionsForLB;
 	private SAMSequenceDictionary dict;
 	private String scc;
 	private String sec;
@@ -54,7 +55,8 @@ public class Configuration implements Serializable
 	private String driverMemGB;
 	private String vcMemGB;
 	private int[] chrLenArray;
-	private int[] chrRegionSizeArray;
+	private int[] chrRegionArray;
+	private long chrLenSum;
 	private HashMap<String, Integer> chrNameMap;
 	
 	public void initialize(String configFile, String part)
@@ -82,6 +84,10 @@ public class Configuration implements Serializable
 			hadoopInstall = correctFolderName(document.getElementsByTagName("hadoopInstall").item(0).getTextContent());
 			ignoreList = document.getElementsByTagName("ignoreList").item(0).getTextContent();
 			numRegions = document.getElementsByTagName("numRegions").item(0).getTextContent();
+			if (document.getElementsByTagName("numRegionsForLB").item(0) == null)
+				numRegionsForLB = "1";
+			else
+				numRegionsForLB = document.getElementsByTagName("numRegionsForLB").item(0).getTextContent();
 			
 			numInstances = document.getElementsByTagName("numInstances" + part).item(0).getTextContent();
 			if (Integer.parseInt(part) == 2)
@@ -114,8 +120,9 @@ public class Configuration implements Serializable
 			}
 			System.out.println("\n1.Hash code of dict = " + dict.hashCode() + "\n");
 			chrLenArray = dictParser.getChrLenArray();
-			dictParser.setChrRegionsSizes(Integer.parseInt(numRegions));
-			chrRegionSizeArray = dictParser.getChrRegionSizeArray();
+			chrLenSum = dictParser.getChrLenSum();
+			dictParser.setChrRegions(Integer.parseInt(numRegionsForLB));
+			chrRegionArray = dictParser.getChrRegionArray();
 			chrNameMap = dictParser.getChrNameMap();
 		}
 		catch(Exception e)
@@ -153,9 +160,14 @@ public class Configuration implements Serializable
 		return chrLenArray[chr];
 	}
 	
-	public int getChrRegionSize(int chr)
+	public long getChrLenSum()
 	{
-		return chrRegionSizeArray[chr];
+		return chrLenSum;
+	}
+	
+	public int getChrRegion(int chr)
+	{
+		return chrRegionArray[chr];
 	}
 
 	public String getMode()
@@ -254,6 +266,11 @@ public class Configuration implements Serializable
 	public String getNumRegions()
 	{
 		return numRegions;
+	}
+	
+	public String getNumRegionsForLB()
+	{
+		return numRegionsForLB;
 	}
 	
 	public void setNumInstances(String numInstances)

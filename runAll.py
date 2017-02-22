@@ -33,7 +33,7 @@ times_list.append(time.time())
 iterations = 4 - startingPart
 for i in range(0, iterations):
 	part = str(i+startingPart)
-	os.system("./runPart.py " + configFile + " " + part)
+	os.system("./runPart.py " + configFile + " " + part + " &> log" + part + ".txt")
 	pt = times_list[i]
 	ct = time.time()
 	times_list.append(ct)

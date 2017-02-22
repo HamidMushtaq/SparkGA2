@@ -15,9 +15,10 @@ USE_YARN_CLIENT_FOR_HADOOP = False
 
 if len(sys.argv) < 3:
 	print("Not enough arguments!")
-	print("Example of usage: ./run2.py config.xml 1")
+	print("Example of usage: ./runPart.py config.xml 2")
 	sys.exit(1)
 
+#exeName = "target/scala-2.11/dnaseqanalyzer_2.11-1.0.jar"
 exeName = "dnaseqanalyzer_2.11-1.0.jar"
 logFile = "time.txt"
 configFilePath = sys.argv[1]
@@ -36,8 +37,9 @@ tmpFolder = doc.getElementsByTagName("tmpFolder")[0].firstChild.data
 # Parameters for this part
 numInstances = doc.getElementsByTagName("numInstances" + partNumber)[0].firstChild.data
 numTasks = doc.getElementsByTagName("numTasks" + partNumber)[0].firstChild.data
+numRegionsForLB = doc.getElementsByTagName("numRegionsForLB")[0].firstChild
+part2Iters = "1" if (numRegionsForLB == None) else numRegionsForLB.data
 exe_mem = doc.getElementsByTagName("execMemGB" + partNumber)[0].firstChild.data + "g"
-double_exe_mem = str(int(doc.getElementsByTagName("execMemGB" + partNumber)[0].firstChild.data) * 2) + "g"
 driver_mem = doc.getElementsByTagName("driverMemGB" + partNumber)[0].firstChild.data + "g"
 
 print "mode = |" + mode + "|"
@@ -106,7 +108,12 @@ def runHadoopMode(part):
 			os.system("hadoop fs -get " + dictHDFSPath)
 		os.system("hadoop fs -rm -r -f " + outputFolder)
 	
-	executeHadoop(part, numInstances, exe_mem, "")
+	if (part == 2):
+		print ">> Number of iterations for part 2 = " + part2Iters
+		for i in range(0, int(part2Iters)):
+			executeHadoop(2, numInstances, exe_mem, " " + str(i))
+	else:
+		executeHadoop(part, numInstances, exe_mem, "")
 	addToLog("[" + time.ctime() + "] Part" + str(part) + " completed.")
 	
 def runLocalMode(part):

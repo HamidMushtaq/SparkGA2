@@ -28,7 +28,7 @@ public class DictParser
 {	
 	SAMSequenceDictionary dict;
 	int[] chrLenArray;
-	int[] chrRegionSizeArray;
+	int[] chrRegionArray;
 	long chrLenSum;
 	private HashMap<String, Integer> chrNameMap;
 	
@@ -54,7 +54,7 @@ public class DictParser
 		}
 	}
 	
-	public long getChrLenSun()
+	public long getChrLenSum()
 	{
 		return chrLenSum;
 	}
@@ -64,27 +64,30 @@ public class DictParser
 		return chrLenArray;
 	}
 	
-	void setChrRegionsSizes(int regions)
+	void setChrRegions(int regions)
 	{
-		chrRegionSizeArray = new int[25];
-		int avgRegionSize = (int)(chrLenSum / regions);
+		chrRegionArray = new int[25];
+		int regionSize = (int)(chrLenSum / regions);
+		int currRegion = 0;
+		int accSize = 0;
 		
 		for(int i = 0; i < 25; i++)
 		{
-			int segments = chrLenArray[i] / avgRegionSize;
-		
-			if (segments == 0)
-				segments = 1;
-		
-			chrRegionSizeArray[i] = chrLenArray[i] / segments;
-			System.out.println("Hamid: chr" + i + " avgRegionSize = " + avgRegionSize + ", chrLen = " + chrLenArray[i]);
-			System.out.println("Hamid: chr" + i + " -> segments = " + segments + ", region size = " + chrRegionSizeArray[i]);
+			chrRegionArray[i] = currRegion;
+			accSize += chrLenArray[i];
+			if (accSize > regionSize)
+			{
+				accSize = 0;
+				currRegion += 1;
+			}
+			if (currRegion >= regions)
+				currRegion = regions - 1;
 		}
 	}
 	
-	public int[] getChrRegionSizeArray()
+	public int[] getChrRegionArray()
 	{
-		return chrRegionSizeArray;
+		return chrRegionArray;
 	}
 	
 	public HashMap getChrNameMap()

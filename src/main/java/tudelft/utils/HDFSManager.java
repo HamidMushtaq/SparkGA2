@@ -73,10 +73,25 @@ public class HDFSManager
         }
 	}
 	
-	public void append(String fname, String s)
+	/*public void append(String fname, String s)
 	{
 		String newContent = readWholeFile(fname) + s;
 		writeWholeFile(fname, newContent);
+	}*/
+	
+	public void append(String fname, String s)
+	{
+		try
+		{			
+			FSDataOutputStream fout = fs.append(new Path(fname));
+			PrintWriter writer = new PrintWriter(fout);
+			writer.append(s);
+			writer.close();
+		}
+		catch (IOException ex) 
+		{
+            ex.printStackTrace();
+        }
 	}
 	
 	public String readWholeFile(String fname)
