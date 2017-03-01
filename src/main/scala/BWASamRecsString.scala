@@ -23,13 +23,11 @@ import htsjdk.samtools._
 import tudelft.utils._
 import tudelft.utils.Configuration
 
-class BWAKeyValues(filePath: String, chrRegion: Integer, config: Configuration)
+class BWASamRecsString(is: InputStream, chrRegion: Integer, config: Configuration)
 {
-	val samRecs = scala.collection.mutable.ArrayBuffer.empty[SAMRecord]
+	var samRecs = scala.collection.mutable.ArrayBuffer.empty[SAMRecord]
 	val mConfig = config
 	var mReads = 0
-	val mFile = new File(filePath);
-	val is = new FileInputStream(mFile);
     val validationStringency: ValidationStringency = ValidationStringency.LENIENT;
     val mReader = new BufferedLineReader(is);
     val samRecordFactory = new DefaultSAMRecordFactory();
@@ -38,6 +36,11 @@ class BWAKeyValues(filePath: String, chrRegion: Integer, config: Configuration)
 	def getArray() : Array[SAMRecord] = 
 	{
 		return samRecs.toArray
+	}
+	
+	def setSamRecs(srecs: scala.collection.mutable.ArrayBuffer[SAMRecord])
+	{
+		samRecs = srecs
 	}
 	
     def writeSAMRecord(sam: SAMRecord) : Integer = 
@@ -65,8 +68,8 @@ class BWAKeyValues(filePath: String, chrRegion: Integer, config: Configuration)
 		var mParentReader: SAMFileReader = null
         val headerCodec = new SAMTextHeaderCodec();
         headerCodec.setValidationStringency(validationStringency)
-        val mFileHeader = headerCodec.decode(mReader, mFile.toString)
-        val parser = new SAMLineParser(samRecordFactory, validationStringency, mFileHeader, null, mFile)
+        val mFileHeader = headerCodec.decode(mReader, null)
+        val parser = new SAMLineParser(samRecordFactory, validationStringency, mFileHeader, null, null)
         // now process each read...
         var count = 0
 		var badLines = 0
@@ -110,5 +113,6 @@ class BWAKeyValues(filePath: String, chrRegion: Integer, config: Configuration)
 	{
 		mReader.close()
 		is.close()
+		samRecs = null
 	}
 }
