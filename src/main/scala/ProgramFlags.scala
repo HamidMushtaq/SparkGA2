@@ -10,7 +10,8 @@ object ProgramFlags
 	// Downloading
 	final val downloadNeededFiles = false
 	// Compression and reading of HDFS files
-	final val unzipBWAInputDirectly = false
+	final val compressionLevel = 4
+	final val unzipBWAInputDirectly = true
 	final val readLBInputDirectly = true
 	// Optional stages
 	final val doIndelRealignment = false

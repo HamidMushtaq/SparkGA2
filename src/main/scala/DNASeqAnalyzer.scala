@@ -23,6 +23,7 @@ import org.apache.log4j.Logger
 import org.apache.log4j.Level
 import org.apache.commons.io.FileUtils
 import org.apache.commons.io.filefilter.WildcardFileFilter
+import org.apache.commons.lang3.StringUtils
 
 import java.io._
 import java.nio.file.{Paths, Files}
@@ -107,7 +108,7 @@ def bwaRun (chunkName: String, config: Configuration) : Array[(Long, Int)] =
 			if (config.getMode != "local")
 			{
 				inputFileBytes = hdfsManager.readBytes(inputFileName)
-				LogWriter.dbgLog("bwa/" + x, t0, "0a\tSize of zipped file = " + inputFileName + " in bytes = " + inputFileBytes.size, config)
+				LogWriter.dbgLog("bwa/" + x, t0, "0a\tSize of " + inputFileName + " = " + (inputFileBytes.size / (1024 * 1024)) + " MB.", config)
 			}
 			else
 			{
@@ -122,7 +123,7 @@ def bwaRun (chunkName: String, config: Configuration) : Array[(Long, Int)] =
 			if (config.getMode != "local")
 				hdfsManager.download(x + ".gz", config.getInputFolder, config.getTmpFolder, false)
 			val unzipStr = "gunzip -c " + inputFileName
-			LogWriter.dbgLog("bwa/" + x, t0, "0a\t" + unzipStr + ", Input file size = " + ((new File(inputFileName).length) / (1024 * 1024)) + " MB. ", config)
+			LogWriter.dbgLog("bwa/" + x, t0, "0a\t" + unzipStr + ", Input file size = " + ((new File(inputFileName).length) / (1024 * 1024)) + " MB.", config)
 			unzipStr #> new java.io.File(fqFileName) !;
 			if (config.getMode != "local")
 				new File(inputFileName).delete
@@ -157,9 +158,10 @@ def bwaRun (chunkName: String, config: Configuration) : Array[(Long, Int)] =
 	val sbDbg = new StringBuilder(4096)
 	val arr = parMap.map{case (k, content) => 
 		{
-			val lines = content.split('\n')
-			if (ProgramFlags.rmDupsInBWA && (lines.size > 500))
+			val numOfLines = StringUtils.countMatches(content, "\n")
+			if (ProgramFlags.rmDupsInBWA && (numOfLines > 500))
 			{
+				val lines = content.split('\n')
 				val chrNum = k / ProgramFlags.SF
 				val pos = k % ProgramFlags.SF
 				val sb = new StringBuilder(1024 * 1024)
@@ -176,12 +178,12 @@ def bwaRun (chunkName: String, config: Configuration) : Array[(Long, Int)] =
 						reads += 1
 					}
 				}
-				sbDbg.append(s"($chrNum, $pos):\t" + lines.size + " to " + reads + "\n")
-				(k, reads, new GzipCompressor(sb.toString).compress)
+				sbDbg.append(s"($chrNum, $pos):\t" + numOfLines + " to " + reads + "\n")
+				(k, reads, new GzipCompressor(sb.toString, ProgramFlags.compressionLevel).compress)
 			}
 			else
 				//(k, content.split('\n').size, new GzipCompressor(content.toString).compress)
-				(k, lines.size, new GzipCompressor(content.toString).compress)
+				(k, numOfLines, new GzipCompressor(content.toString, ProgramFlags.compressionLevel).compress)
 		}
 	}.toArray
 	LogWriter.dbgLog("bwa/" + x, t0, "2b\tCompressed the data.\n" + sbDbg.toString, config)

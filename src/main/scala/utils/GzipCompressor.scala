@@ -22,14 +22,14 @@ import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.InputStreamReader
 
-class GzipCompressor(data: String)
+class GzipCompressor(data: String, compLevel: Int)
 {
 	def compress() : Array[Byte] = 
 	{
 		val bos = new ByteArrayOutputStream(data.length)
 		val gzip = new GZIPOutputStreamWithLevel(bos)
 		
-		gzip.setLevel(6)
+		gzip.setLevel(compLevel)
 		gzip.write(data.getBytes)
 		gzip.close
 		
