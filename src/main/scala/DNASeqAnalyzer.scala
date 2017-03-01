@@ -23,7 +23,6 @@ import org.apache.log4j.Logger
 import org.apache.log4j.Level
 import org.apache.commons.io.FileUtils
 import org.apache.commons.io.filefilter.WildcardFileFilter
-import org.apache.commons.lang3.StringUtils
 
 import java.io._
 import java.nio.file.{Paths, Files}
@@ -158,10 +157,10 @@ def bwaRun (chunkName: String, config: Configuration) : Array[(Long, Int)] =
 	val sbDbg = new StringBuilder(4096)
 	val arr = parMap.map{case (k, content) => 
 		{
-			val numOfLines = StringUtils.countMatches(content, "\n")
+			val lines = content.split('\n')
+			val numOfLines = lines.size
 			if (ProgramFlags.rmDupsInBWA && (numOfLines > 500))
 			{
-				val lines = content.split('\n')
 				val chrNum = k / ProgramFlags.SF
 				val pos = k % ProgramFlags.SF
 				val sb = new StringBuilder(1024 * 1024)
@@ -966,6 +965,7 @@ def main(args: Array[String])
 			println("The input directory " + config.getInputFolder() + " does not exist!")
 			System.exit(1)
 		}
+		LogWriter.statusLog("Program flags:", t0, ProgramFlags.toString, config)
 		inputFileNames.foreach(println)
 	
 		// Give chunks to bwa instances
