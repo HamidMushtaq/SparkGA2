@@ -58,6 +58,27 @@ public class HDFSManager
         }
 	}
 	
+	public PrintWriter open(String fname) throws IOException
+	{
+		try
+		{
+			Path filenamePath = new Path(fname);  
+		
+			if (fs.exists(filenamePath))
+				fs.delete(filenamePath, true);
+				
+			FSDataOutputStream fout = fs.create(filenamePath);
+			Charset UTF8 = Charset.forName("utf-8");
+			PrintWriter writer = new PrintWriter(new OutputStreamWriter(fout, UTF8));
+			return writer;
+		}
+		catch (IOException ex) 
+		{
+            ex.printStackTrace();
+			return null;
+        }
+	}
+	
 	public boolean exists(String fname)
 	{
 		try

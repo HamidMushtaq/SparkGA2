@@ -309,7 +309,7 @@ def getRegion(chrRegion: Integer, lbRegion: Integer, samRecordsZipped: Array[Arr
 	var samRecordsSorted: Array[SAMRecord] = null 
 	if (writeInString)
 	{
-		val nThreads = 4
+		val nThreads = config.getNumThreads.toInt
 		val srecs = new Array[scala.collection.mutable.ArrayBuffer[SAMRecord]](nThreads)
 		val threadArray = new Array[Thread](nThreads)
 		val si = new Array[Int](nThreads)
@@ -635,12 +635,6 @@ def variantCall(chrRegion: String, config: Configuration) : Array[((Integer, Int
 		
 		val retArray = getVCF(chrRegion, config)
 		
-		if (config.getMode != "local")
-		{
-			new File(config.getTmpFolder + "." + chrRegion + ".vcf.crc").delete
-			FilesManager.uploadFileToOutput(config.getTmpFolder + chrRegion + ".vcf", "vcOut", true, config)
-		}
-		
 		LogWriter.dbgLog("vc/region_" + chrRegion, t0, "vcf\tOutput written to vcf file", config)
 		return retArray
 	} 
@@ -814,11 +808,24 @@ def dnaVariantCalling(tmpFileBase: String, t0: Long, chrRegion: String, config: 
 def getVCF(chrRegion: String, config: Configuration) : Array[((Integer, Integer), String)] =
 {
 	var a = scala.collection.mutable.ArrayBuffer.empty[((Integer, Integer), String)]
-	var fileName = config.getTmpFolder() + chrRegion + ".vcf"
+	var fileName = config.getTmpFolder + chrRegion + ".vcf"
 	var commentPos = 0
 	
 	if (!Files.exists(Paths.get(fileName)))
-		return a.toArray
+	{
+		if (config.getMode != "local") // For the optional Part 4 only, where the vcf file is not already in the tmp dir
+		{
+			val hdfsManager = new HDFSManager
+			hdfsManager.download(chrRegion + ".vcf", config.getOutputFolder + "vcOut/", config.getTmpFolder, false)
+			// Hamid: Write the processor info ///////////////////////////////
+			val procInfo = FilesManager.readWholeLocalFile("/proc/cpuinfo")
+			hdfsManager.create(config.getOutputFolder + "log/procInfo/" + chrRegion)
+			LogWriter.dbgLog("procInfo/" + chrRegion, 0, "Information about the processor:\n" + procInfo, config)	
+			//////////////////////////////////////////////////////////////////
+		}
+		else
+			return a.toArray
+	}
 	
 	for (line <- Source.fromFile(fileName).getLines()) 
 	{
@@ -845,8 +852,15 @@ def getVCF(chrRegion: String, config: Configuration) : Array[((Integer, Integer)
 		}
 	}
 	
+	if (config.getMode != "local")
+	{
+		new File(config.getTmpFolder + "." + chrRegion + ".vcf.crc").delete
+		FilesManager.uploadFileToOutput(config.getTmpFolder + chrRegion + ".vcf", "vcOut", true, config)
+	}
+		
 	// Delete temporary file
-	new File(fileName + ".idx").delete()
+	if (Files.exists(Paths.get(fileName + ".idx")))
+		new File(fileName + ".idx").delete
 	
 	return a.toArray
 }
@@ -1049,17 +1063,13 @@ def main(args: Array[String])
 	
 		val rdd = chrToSamRecord2.foreach(x => buildRegion(x._1, i, x._2, bcConfig.value))		
 	}
-	else // (part == 3)
+	else if (part == 3)
 	{
 		// For sorting
 		implicit val vcfOrdering = new Ordering[(Integer, Integer)] {
 			override def compare(a: (Integer, Integer), b: (Integer, Integer)) = if (a._1 == b._1) a._2 - b._2 else a._1 - b._1;
 		}
 		//
-		
-		val combinedVCFPath = config.getOutputFolder + "combinedVCF"
-		if (hdfsManager.exists(combinedVCFPath))
-			hdfsManager.remove(combinedVCFPath)
 		
 		var inputFileNames: Array[String] = null
 		if (config.getMode != "local") 
@@ -1071,9 +1081,37 @@ def main(args: Array[String])
 		val inputData1BySize = inputData1.map(x => (getBamFileSize(x, bcConfig.value), x))
 		val inputData = inputData1BySize.sortByKey(false).map(_._2)
 		inputData.setName("rdd_inputData")
+		// RDD[((Integer, Integer), String)]
 		val vcf = inputData.flatMap(x => variantCall(x, bcConfig.value))
 		vcf.setName("rdd_vc")
-		vcf.distinct.sortByKey().map(_._2).coalesce(1, true).saveAsTextFile(combinedVCFPath)
+		//vcf.distinct.sortByKey().map(_._2).coalesce(1, false).saveAsTextFile(config.getOutputFolder + "combinedVCF")
+		val vcfCollected = vcf.distinct.sortByKey().map(_._2 + '\n').collect
+		val writer = hdfsManager.open(config.getOutputFolder + "sparkCombined.vcf")
+		for(e <- vcfCollected)
+			writer.write(e)
+		writer.close
+	}
+	else // You get a combined vcf file with part3 anyway. So, this part is just for the case where for some reason, you want to combine the output vcf files again.
+	{
+		// For sorting
+		implicit val vcfOrdering = new Ordering[(Integer, Integer)] {
+			override def compare(a: (Integer, Integer), b: (Integer, Integer)) = if (a._1 == b._1) a._2 - b._2 else a._1 - b._1;
+		}
+		//
+		
+		var inputFileNames: Array[String] = null
+		if (config.getMode != "local") 
+			inputFileNames = FilesManager.getInputFileNames(config.getOutputFolder + "vcOut/", config).map(x => x.replace(".vcf", ""))
+		else 
+			inputFileNames = FilesManager.getInputFileNames(config.getTmpFolder, config).filter(x => x.contains(".vcf")).map(x => x.replace(".vcf", ""))
+		val inputData = sc.parallelize(inputFileNames, inputFileNames.size)
+		val vcf = inputData.flatMap(x => getVCF(x, bcConfig.value))
+		//vcf.distinct.sortByKey().map(_._2).coalesce(1, false).saveAsTextFile(config.getOutputFolder + "combinedVCF")
+		val vcfCollected = vcf.distinct.sortByKey().map(_._2 + '\n').collect
+		val writer = hdfsManager.open(config.getOutputFolder + "sparkCombined.vcf")
+		for(e <- vcfCollected)
+			writer.write(e)
+		writer.close
 	}
 	//////////////////////////////////////////////////////////////////////////
 	var et = (System.currentTimeMillis - t0) / 1000

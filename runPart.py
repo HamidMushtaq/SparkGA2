@@ -35,12 +35,13 @@ inputFolder = doc.getElementsByTagName("inputFolder")[0].firstChild.data
 outputFolder = doc.getElementsByTagName("outputFolder")[0].firstChild.data
 tmpFolder = doc.getElementsByTagName("tmpFolder")[0].firstChild.data
 # Parameters for this part
-numInstances = doc.getElementsByTagName("numInstances" + partNumber)[0].firstChild.data
-numTasks = doc.getElementsByTagName("numTasks" + partNumber)[0].firstChild.data
+configPart = "3" if (int(partNumber) > 3) else partNumber
+numInstances = doc.getElementsByTagName("numInstances" + configPart)[0].firstChild.data
+numTasks = doc.getElementsByTagName("numTasks" + configPart)[0].firstChild.data
 numRegionsForLB = doc.getElementsByTagName("numRegionsForLB")[0].firstChild
 part2Iters = "1" if (numRegionsForLB == None) else numRegionsForLB.data
-exe_mem = doc.getElementsByTagName("execMemGB" + partNumber)[0].firstChild.data + "g"
-driver_mem = doc.getElementsByTagName("driverMemGB" + partNumber)[0].firstChild.data + "g"
+exe_mem = doc.getElementsByTagName("execMemGB" + configPart)[0].firstChild.data + "g"
+driver_mem = doc.getElementsByTagName("driverMemGB" + configPart)[0].firstChild.data + "g"
 
 print "mode = |" + mode + "|"
 

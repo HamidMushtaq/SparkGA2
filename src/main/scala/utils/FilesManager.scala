@@ -83,6 +83,11 @@ object FilesManager
 		else
 			return new String(Files.readAllBytes(Paths.get(fname)))
 	}
+	
+	def readWholeLocalFile(fname: String) : String =
+	{
+		return new String(Files.readAllBytes(Paths.get(fname)))
+	}
 
 	def readDictFile(config: Configuration) : String =
 	{

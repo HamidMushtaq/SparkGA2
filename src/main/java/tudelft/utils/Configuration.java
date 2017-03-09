@@ -89,11 +89,10 @@ public class Configuration implements Serializable
 			else
 				numRegionsForLB = document.getElementsByTagName("numRegionsForLB").item(0).getTextContent();
 			
+			if (Integer.parseInt(part) > 3)
+				part = "3";
 			numInstances = document.getElementsByTagName("numInstances" + part).item(0).getTextContent();
-			if (Integer.parseInt(part) == 2)
-				numThreads = document.getElementsByTagName("numTasks2").item(0).getTextContent();
-			else
-				numThreads = document.getElementsByTagName("numThreads" + part).item(0).getTextContent();
+			numThreads = document.getElementsByTagName("numThreads" + part).item(0).getTextContent();
 			execMemGB = document.getElementsByTagName("execMemGB" + part).item(0).getTextContent();
 			driverMemGB = document.getElementsByTagName("driverMemGB" + part).item(0).getTextContent();
 			vcMemGB = document.getElementsByTagName("vcMemGB").item(0).getTextContent();
