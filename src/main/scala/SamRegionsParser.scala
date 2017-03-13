@@ -22,8 +22,6 @@ class SamRegionsParser(chunkID: String, writerMap: scala.collection.mutable.Hash
 	var mReads = 0
 	var badLines = 0
 	val header = new StringBuilder
-	final val SF = 1e12.toLong
-	final val chrPosGran = 5000
 	
 	def append(line: String) : Integer = 
 	{
@@ -44,7 +42,7 @@ class SamRegionsParser(chunkID: String, writerMap: scala.collection.mutable.Hash
 				return 1
 			
 			val chrPos = fields(3).toInt
-			val chrAndPos = chr * SF + (chrPos / chrPosGran)
+			val chrAndPos = chr * ProgramFlags.SF + (chrPos / ProgramFlags.chrPosGran)
 			if (!writerMap.contains(chrAndPos))
 				writerMap.put(chrAndPos, new StringBuilder)
 			writerMap(chrAndPos).append(line + "\n")
