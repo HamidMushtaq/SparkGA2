@@ -1,7 +1,7 @@
 #!/usr/bin/python
 #****************************************/
 #	Script:		runAll.py	
-#	Author:		Hamid Mushtaq  		
+#	Author:		Hamid Mushtaq 	
 #****************************************/
 from xml.dom import minidom
 import sys
