@@ -12,6 +12,9 @@ logFile = "time.txt"
 configFile = sys.argv[1]
 startingPart = 1
 
+doc = minidom.parse(configFile)
+outputFolder = doc.getElementsByTagName("outputFolder")[0].firstChild.data
+
 if len(sys.argv) > 2: 
 	startingPart = int(sys.argv[2])
 
@@ -29,6 +32,9 @@ def getElapsedStr(elapsed):
 
 times_list = []
 times_list.append(time.time())
+
+if startingPart == 1:
+	os.system("hadoop fs -rm -r .Trash/*")
 
 iterations = 4 - startingPart
 for i in range(0, iterations):

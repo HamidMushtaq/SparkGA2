@@ -107,10 +107,9 @@ def runHadoopMode(part):
 		dictPath = './' + dictHDFSPath[dictHDFSPath.rfind('/') + 1:]
 		if not os.path.exists(dictPath):
 			os.system("hadoop fs -get " + dictHDFSPath)
-		os.system("hadoop fs -rm -r -f " + outputFolder)
+		os.system("hadoop fs -rm -r -f -skipTrash " + outputFolder)
 	
 	if (part == 2):
-		print ">> Number of iterations for part 2 = " + part2Iters
 		for i in range(0, int(part2Iters)):
 			executeHadoop(2, numInstances, exe_mem, " " + str(i))
 	else:
