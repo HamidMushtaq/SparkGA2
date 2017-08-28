@@ -73,7 +73,6 @@ def bwaRun (chunkName: String, config: Configuration) : Array[(Long, Int)] =
 	if (config.getMode != "local")
 	{
 		hdfsManager.create(config.getOutputFolder + "log/bwa/" + x)
-		DownloadManager.downloadBinProgram("bwa", config)
 		val file = new File(FilesManager.getBinToolsDirPath(config) + "bwa") 
 		file.setExecutable(true)
 		if (ProgramFlags.downloadNeededFiles)
@@ -546,8 +545,7 @@ def makeRegionFile(tmpFileBase: String, r: ChromosomeRange, config: Configuratio
 		
 		if (config.getMode != "local")
 		{
-			hdfsManager.downloadIfRequired("bedtools", config.getToolsFolder, config.getTmpFolder)
-			val file = new File(config.getTmpFolder + "bedtools") 
+			val file = new File(toolsFolder + "bedtools") 
 			file.setExecutable(true)
 		}
 		
