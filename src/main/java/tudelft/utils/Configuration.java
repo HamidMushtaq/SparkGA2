@@ -54,10 +54,10 @@ public class Configuration implements Serializable
 	private String execMemGB;
 	private String driverMemGB;
 	private String vcMemGB;
-	private int[] chrLenArray;
 	private int[] chrRegionArray;
-	private long chrLenSum;
 	private HashMap<String, Integer> chrNameMap;
+	private HashSet<String> ignoreListSet;
+	private HashMap<Integer, Integer> chrArrayIndexMap;
 	
 	public void initialize(String configFile, String part)
 	{	
@@ -83,6 +83,16 @@ public class Configuration implements Serializable
 			sfFolder = correctFolderName(document.getElementsByTagName("sfFolder").item(0).getTextContent());
 			hadoopInstall = correctFolderName(document.getElementsByTagName("hadoopInstall").item(0).getTextContent());
 			ignoreList = document.getElementsByTagName("ignoreList").item(0).getTextContent();
+			//////////////////////////////////////////////////////////////////
+			ignoreListSet = new HashSet<String>();
+			String[] toIgnoreArray = ignoreList.trim().split(",");
+			for(int i = 0; i < toIgnoreArray.length; i++)
+			{
+				String s = toIgnoreArray[i].trim();
+				if (!s.equals(""))
+					ignoreListSet.add(s);
+			}
+			//////////////////////////////////////////////////////////////////
 			numRegions = document.getElementsByTagName("numRegions").item(0).getTextContent();
 			if (document.getElementsByTagName("numRegionsForLB").item(0) == null)
 				numRegionsForLB = "1";
@@ -105,7 +115,7 @@ public class Configuration implements Serializable
 	
 			startTime = System.currentTimeMillis();
 			
-			DictParser dictParser = new DictParser();
+			DictParser dictParser = new DictParser(ignoreListSet);
 			if (mode.equals("local"))
 			{
 				String dictPath = refPath.replace(".fasta", ".dict");
@@ -118,11 +128,10 @@ public class Configuration implements Serializable
 				dict = dictParser.parse(getFileNameFromPath(refPath).replace(".fasta", ".dict"));
 			}
 			System.out.println("\n1.Hash code of dict = " + dict.hashCode() + "\n");
-			chrLenArray = dictParser.getChrLenArray();
-			chrLenSum = dictParser.getChrLenSum();
-			dictParser.setChrRegions(Integer.parseInt(numRegionsForLB));
+			dictParser.setChrRegions(Integer.parseInt(numRegionsForLB));			
 			chrRegionArray = dictParser.getChrRegionArray();
 			chrNameMap = dictParser.getChrNameMap();
+			chrArrayIndexMap = dictParser.getChrArrayIndexMap();
 		}
 		catch(Exception e)
 		{
@@ -152,16 +161,6 @@ public class Configuration implements Serializable
 	public SAMSequenceDictionary getDict()
 	{
 		return dict;
-	}
-	
-	public int getChrLen(int chr)
-	{
-		return chrLenArray[chr];
-	}
-	
-	public long getChrLenSum()
-	{
-		return chrLenSum;
 	}
 	
 	public int getChrRegion(int chr)
@@ -257,9 +256,9 @@ public class Configuration implements Serializable
 		return numThreads;
 	}
 	
-	public String getIgnoreList()
+	public boolean isInIgnoreList(String s)
 	{
-		return ignoreList;
+		return ignoreListSet.contains(s);
 	}
 	
 	public String getNumRegions()
@@ -333,6 +332,11 @@ public class Configuration implements Serializable
 	public int getChrIndex(String chrName)
 	{
 		return chrNameMap.get(chrName);
+	}
+	
+	public int getChrArrayIndex(int chrIndex)
+	{
+		return chrArrayIndexMap.get(chrIndex);
 	}
 	
 	public void print()

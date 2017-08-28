@@ -205,7 +205,8 @@ def bwaRun (chunkName: String, config: Configuration) : Array[(Long, Int)] =
 		for(i <-0 until arr.size)
 		{
 			val chrIndex = (arr(i)._1 / ProgramFlags.SF).toInt
-			val region = config.getChrRegion(chrIndex)
+			val chrArrayIndex = config.getChrArrayIndex(chrIndex)
+			val region = config.getChrRegion(chrArrayIndex)
 			bfWriter(region).writeRecord(arr(i))
 			retArr(i) = (arr(i)._1, arr(i)._2)
 		}
@@ -835,13 +836,7 @@ def getVCF(chrRegion: String, config: Configuration) : Array[((Integer, Integer)
 			val e = line.split('\t')
 			val position = e(1).toInt
 			var chromosome = e(0)
-			var chrNumber = 0
-			
-			if (e(0).contains("chr"))
-				chromosome = e(0).substring(3)
-			
-			try{chrNumber = chromosome.toInt}
-			catch{case _: Throwable => chrNumber = if (chromosome.contains('X')) 101 else 102;}
+			var chrNumber = config.getChrIndex(chromosome)
 				
 			a.append(((chrNumber, position), line))
 		}
@@ -864,7 +859,7 @@ def getVCF(chrRegion: String, config: Configuration) : Array[((Integer, Integer)
 	
 	return a.toArray
 }
-	
+
 def writeRegionsMap(regionsMap: scala.collection.mutable.HashMap[Long, Int], config: Configuration)
 {
 	val sb = new StringBuilder

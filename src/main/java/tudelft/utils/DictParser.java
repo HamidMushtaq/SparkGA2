@@ -27,10 +27,21 @@ import java.util.*;
 public class DictParser
 {	
 	SAMSequenceDictionary dict;
-	int[] chrLenArray;
 	int[] chrRegionArray;
 	long chrLenSum;
+	// Length of each chromosome
+	ArrayList<Integer> chrLenArray;
+	// <Chromosome index, Array Index>
+	private HashMap<Integer, Integer> chrArrayIndexMap;
+	// <Chromosome's name, index>
 	private HashMap<String, Integer> chrNameMap;
+	// Chrosomomes to be ignored
+	private HashSet<String> ignoreListSet;
+	
+	public DictParser(HashSet<String> ilSet)
+	{
+		ignoreListSet = ilSet;
+	}
 	
 	private String getLine(FileInputStream stream) throws IOException 
 	{
@@ -54,27 +65,18 @@ public class DictParser
 		}
 	}
 	
-	public long getChrLenSum()
-	{
-		return chrLenSum;
-	}
-	
-	public int[] getChrLenArray()
-	{
-		return chrLenArray;
-	}
-	
 	void setChrRegions(int regions)
 	{
-		chrRegionArray = new int[25];
+		int N = chrLenArray.size();
+		chrRegionArray = new int[N];
 		int regionSize = (int)(chrLenSum / regions);
 		int currRegion = 0;
 		int accSize = 0;
 		
-		for(int i = 0; i < 25; i++)
+		for(int i = 0; i < N; i++)
 		{
 			chrRegionArray[i] = currRegion;
-			accSize += chrLenArray[i];
+			accSize += chrLenArray.get(i);
 			if (accSize > regionSize)
 			{
 				accSize = 0;
@@ -88,11 +90,16 @@ public class DictParser
 	public int[] getChrRegionArray()
 	{
 		return chrRegionArray;
-	}
+	}	
 	
 	public HashMap getChrNameMap()
 	{
 		return chrNameMap;
+	}
+	
+	public HashMap getChrArrayIndexMap()
+	{
+		return chrArrayIndexMap;
 	}
 		
 	public SAMSequenceDictionary parse(String dictPath) 
@@ -104,11 +111,13 @@ public class DictParser
 			String line = getLine(stream); // header
 			dict = new SAMSequenceDictionary();
 			line = getLine(stream);
-			chrLenArray = new int[25];
+			chrLenArray = new ArrayList<Integer>();
 			int chrIndex = 0;
+			int arrayIndex = 0;
 			
 			chrLenSum = 0;
 			chrNameMap = new HashMap();
+			chrArrayIndexMap = new HashMap();
 			while(line != null) 
 			{
 				// @SQ	SN:chrM	LN:16571
@@ -119,10 +128,11 @@ public class DictParser
 				try 
 				{
 					seqLength = Integer.parseInt(lineData[2].substring(lineData[2].indexOf(':') + 1));
-					if (chrIndex <= 24)
+					if (!ignoreListSet.contains(seqName))
 					{
+						chrLenArray.add(seqLength);
 						chrLenSum += seqLength;
-						chrLenArray[chrIndex++] = seqLength;
+						chrArrayIndexMap.put(chrIndex, arrayIndex++);
 					}
 				} 
 				catch(NumberFormatException ex) 
@@ -130,9 +140,9 @@ public class DictParser
 					System.out.println("Number format exception!\n");
 				}
 				SAMSequenceRecord seq = new SAMSequenceRecord(seqName, seqLength);
-	//                Logger.DEBUG("name: " + seq.getSequenceName() + " length: " + seq.getSequenceLength());
 				dict.addSequence(seq);  
 				line = getLine(stream);
+				chrIndex++;
 			}
 			stream.close();
 			return dict;
