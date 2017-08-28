@@ -48,7 +48,7 @@ class BWASamRecsString(is: InputStream, chrRegion: Integer, config: Configuratio
         var count = 0
         val read1Ref = sam.getReferenceIndex()
 		
-		if (!sam.getReadUnmappedFlag() && (read1Ref >= 0) && (read1Ref <= 24))
+		if (!sam.getReadUnmappedFlag() && (read1Ref >= 0))
 		{
 			samRecs.append(sam)
 			count = count + 1;

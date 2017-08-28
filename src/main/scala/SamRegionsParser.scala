@@ -30,15 +30,24 @@ class SamRegionsParser(chunkID: String, writerMap: scala.collection.mutable.Hash
 			header.append(line + '\n')
 			return 0
 		}
-		
+			
 		try
 		{
 			val fields = line.split('\t')
+			val flags = fields(1).toInt
+			
+			// Hamid: If read is unmapped 
+			if ((flags & 4) > 0)
+				return 1
+				
 			if (fields(2) == "*")
 				return 1
 				
+			if (config.isInIgnoreList(fields(2)))
+				return 1
+				
 			val chr = config.getChrIndex(fields(2))
-			if (chr >= 25)
+			if (chr < 0)
 				return 1
 			
 			val chrPos = fields(3).toInt
