@@ -66,12 +66,12 @@ object FilesManager
 
 	def getToolsDirPath(config: Configuration) : String = 
 	{
-		return if (config.getMode() == "local") config.getToolsFolder() else config.getSfFolder()
+		return if (config.getMode() == "local") config.getToolsFolder() else "./"
 	}
 
 	def getBinToolsDirPath(config: Configuration) : String = 
 	{
-		return if (config.getMode() == "local") config.getToolsFolder() else config.getTmpFolder()
+		return if (config.getMode() == "local") config.getToolsFolder() else "./"
 	}
 
 	def readWholeFile(fname: String, config: Configuration) : String =

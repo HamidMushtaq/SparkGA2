@@ -34,6 +34,7 @@ refPath = doc.getElementsByTagName("refPath")[0].firstChild.data
 inputFolder = doc.getElementsByTagName("inputFolder")[0].firstChild.data
 outputFolder = doc.getElementsByTagName("outputFolder")[0].firstChild.data
 tmpFolder = doc.getElementsByTagName("tmpFolder")[0].firstChild.data
+toolsFolder = doc.getElementsByTagName("toolsFolder")[0].firstChild.data
 # Parameters for this part
 configPart = "3" if (int(partNumber) > 3) else partNumber
 numInstances = doc.getElementsByTagName("numInstances" + configPart)[0].firstChild.data
@@ -66,11 +67,18 @@ def executeHadoop(part, ni, em, extra_param):
 		if not os.path.exists(tmpFolder):
 			os.makedirs(tmpFolder)
 	
-	diff_str = "yarn-client" if USE_YARN_CLIENT_FOR_HADOOP else ("yarn-cluster --files " + configFilePath + "," + dictPath)
+	diff_str = "yarn-client" if USE_YARN_CLIENT_FOR_HADOOP else "yarn-cluster"
+	
+	tools = glob.glob(toolsFolder + '/*')
+	toolsStr = ''
+	for t in tools:
+		toolsStr = toolsStr + t + ','
+	toolsStr = toolsStr[0:-1]
 	
 	cmdStr = "$SPARK_HOME/bin/spark-submit " + \
 	"--jars lib/htsjdk-1.143.jar " + \
 	"--class \"DNASeqAnalyzer\" --master " + diff_str + " " + \
+	"--files " + configFilePath + "," + dictPath + "," + toolsStr + " " + \
 	"--driver-memory " + driver_mem + " --executor-memory " + em + " " + \
 	"--num-executors " + ni + " --executor-cores " + numTasks + " " + \
 	exeName + " " + os.path.basename(configFilePath) + " " + str(part) + extra_param
