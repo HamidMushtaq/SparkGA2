@@ -11,7 +11,8 @@ import subprocess
 import math
 import glob
 
-USE_YARN_CLIENT_FOR_HADOOP = False
+MASTER = "yarn"
+DEPLOY_MODE = "cluster" # or client
 
 if len(sys.argv) < 3:
 	print("Not enough arguments!")
@@ -62,12 +63,10 @@ def executeHadoop(part, ni, em, extra_param):
 	dictHDFSPath = refPath.replace(".fasta", ".dict")
 	dictPath = './' + dictHDFSPath[dictHDFSPath.rfind('/') + 1:]
 	
-	if USE_YARN_CLIENT_FOR_HADOOP:
+	if DEPLOY_MODE != "cluster":
 		os.system('cp ' + configFilePath + ' ./')
 		if not os.path.exists(tmpFolder):
 			os.makedirs(tmpFolder)
-	
-	diff_str = "yarn-client" if USE_YARN_CLIENT_FOR_HADOOP else "yarn-cluster"
 	
 	tools = glob.glob(toolsFolder + '/*')
 	toolsStr = ''
@@ -77,7 +76,7 @@ def executeHadoop(part, ni, em, extra_param):
 	
 	cmdStr = "$SPARK_HOME/bin/spark-submit " + \
 	"--jars lib/htsjdk-1.143.jar " + \
-	"--class \"DNASeqAnalyzer\" --master " + diff_str + " " + \
+	"--class \"DNASeqAnalyzer\" --master " + MASTER + " --deploy-mode " + DEPLOY_MODE + " " + \
 	"--files " + configFilePath + "," + dictPath + "," + toolsStr + " " + \
 	"--driver-memory " + driver_mem + " --executor-memory " + em + " " + \
 	"--num-executors " + ni + " --executor-cores " + numTasks + " " + \
@@ -87,7 +86,7 @@ def executeHadoop(part, ni, em, extra_param):
 	addToLog("[" + time.ctime() + "] " + cmdStr)
 	os.system(cmdStr)
 	
-	if USE_YARN_CLIENT_FOR_HADOOP:
+	if DEPLOY_MODE != "cluster":
 		os.remove('./' + configFilePath[configFilePath.rfind('/') + 1:])
 	
 def executeLocal(part, extra_param):
