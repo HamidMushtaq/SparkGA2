@@ -1,7 +1,7 @@
 // ProgramFlags.scala
 object ProgramFlags
 {
-	final val saveAllStages = false
+	final val saveAllStages = true
 	final val compressRDDs = true
 	final val useTmpDirForJava = false
 	final val rmDupsInBWA = false
@@ -15,7 +15,7 @@ object ProgramFlags
 	final val readLBInputDirectly = true
 	// Optional stages
 	final val doIndelRealignment = false
-	final val doPrintReads = false
+	final val doPrintReads = true
 	
 	override def toString() = 
 	{

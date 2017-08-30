@@ -759,8 +759,10 @@ def baseQualityScoreRecalibration(tmpFileBase: String, t0: Long, chrRegion: Stri
 	
 		// Hamid - Save output of baseQualityScoreRecalibration
 		if (ProgramFlags.saveAllStages)
+		{
 			FilesManager.uploadFileToOutput(tmpFile2, "baseOutput", false, config)
-	
+			FilesManager.uploadFileToOutput(tmpFile2.replace(".bam", ".bai"), "baseOutput", false, config)
+		}
 		// Delete temporary files
 		LogWriter.dbgLog("vc/region_" + chrRegion, t0, "base3(doPrintReads)\tDeleting files " + tmpFile1 + " and " + table, config)
 		new File(tmpFile1).delete
