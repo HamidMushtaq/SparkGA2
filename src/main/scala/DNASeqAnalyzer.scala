@@ -966,6 +966,7 @@ def main(args: Array[String])
 		}
 	});
 	//////////////////////////////////////////////////////////////////////////
+	LogWriter.statusLog("Program flags:", t0, ProgramFlags.toString, config)
 	if (part == 1)
 	{
 		val inputFileNames = FilesManager.getInputFileNames(config.getInputFolder, config).filter(x => x.contains(".fq"))  
@@ -974,7 +975,6 @@ def main(args: Array[String])
 			println("The input directory " + config.getInputFolder() + " does not exist!")
 			System.exit(1)
 		}
-		LogWriter.statusLog("Program flags:", t0, ProgramFlags.toString, config)
 		inputFileNames.foreach(println)
 	
 		// Give chunks to bwa instances
