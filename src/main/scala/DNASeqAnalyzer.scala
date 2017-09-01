@@ -705,7 +705,7 @@ def indelRealignment(tmpFileBase: String, t0: Long, chrRegion: String, config: C
 	val javaTmp = if (ProgramFlags.useTmpDirForJava) ("java -Djava.io.tmpdir=" + config.getTmpFolder) else  "java"
 	
 	// Realigner target creator
-	var cmdStr = javaTmp + " " + MemString + " " + config.getGATKopts + " -jar " + toolsFolder + 
+	var cmdStr = javaTmp + " " + MemString + " -jar " + toolsFolder + 
 		"GenomeAnalysisTK.jar -T RealignerTargetCreator -nt " + config.getNumThreads() + " -R " + FilesManager.getRefFilePath(config) + 
 		" -I " + preprocess + indelStr + " -o " + targets + regionStr
 	LogWriter.dbgLog("vc/region_" + chrRegion, t0, "indel1\t" + cmdStr, config)
@@ -742,7 +742,7 @@ def baseQualityScoreRecalibration(tmpFileBase: String, t0: Long, chrRegion: Stri
 	val javaTmp = if (ProgramFlags.useTmpDirForJava) ("java -Djava.io.tmpdir=" + config.getTmpFolder) else  "java"
 	
 	// Base recalibrator
-	var cmdStr = javaTmp + " " + MemString + " " + config.getGATKopts + " -jar " + toolsFolder + 
+	var cmdStr = javaTmp + " " + MemString + " -jar " + toolsFolder + 
 		"GenomeAnalysisTK.jar -T BaseRecalibrator -nct " + config.getNumThreads() + " -R " + FilesManager.getRefFilePath(config) + " -I " + 
 		tmpFile1 + " -o " + table + regionStr + " --disable_auto_index_creation_and_locking_when_reading_rods" + indelStr + " -knownSites " + knownSite
 	LogWriter.dbgLog("vc/region_" + chrRegion, t0, "base1\t" + cmdStr, config)
