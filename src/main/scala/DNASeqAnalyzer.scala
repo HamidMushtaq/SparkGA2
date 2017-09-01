@@ -787,11 +787,13 @@ def dnaVariantCalling(tmpFileBase: String, t0: Long, chrRegion: String, config: 
 	val MemString = config.getExecMemX()
 	val regionStr = " -L " + tmpFileBase + ".bed"
 	val javaTmp = if (ProgramFlags.useTmpDirForJava) ("java -Djava.io.tmpdir=" + config.getTmpFolder) else  "java"
+	val standconf = if (config.getSCC == "0") " " else (" -stand_call_conf " + config.getSCC)
+	val standemit = if (config.getSEC == "0") " " else (" -stand_emit_conf " + config.getSEC)
 	
 	// Haplotype caller
 	var cmdStr = javaTmp + " " + MemString + " " + config.getGATKopts + " -jar " + toolsFolder + 
 		"GenomeAnalysisTK.jar -T HaplotypeCaller -nct " + config.getNumThreads() + " -R " + FilesManager.getRefFilePath(config) + " -I " + tmpFile2 + 
-		bqsrStr + " --genotyping_mode DISCOVERY -o " + snps + " -stand_call_conf " + config.getSCC() + " -stand_emit_conf " + config.getSEC() + 
+		bqsrStr + " --genotyping_mode DISCOVERY -o " + snps + standconf + standemit + 
 		regionStr + " --no_cmdline_in_header --disable_auto_index_creation_and_locking_when_reading_rods"
 	LogWriter.dbgLog("vc/region_" + chrRegion, t0, "haplo1\t" + cmdStr, config)
 	cmdStr.!!
