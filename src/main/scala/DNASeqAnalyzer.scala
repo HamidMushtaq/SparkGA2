@@ -752,7 +752,7 @@ def baseQualityScoreRecalibration(tmpFileBase: String, t0: Long, chrRegion: Stri
 	if (ProgramFlags.doPrintReads)
 	{
 		// Print reads
-		cmdStr = javaTmp + " " + MemString + " " + config.getGATKopts + " -jar " + toolsFolder + 
+		cmdStr = javaTmp + " " + MemString + " -jar " + toolsFolder + 
 			"GenomeAnalysisTK.jar -T PrintReads -R " + FilesManager.getRefFilePath(config) + " -I " + tmpFile1 + " -o " + tmpFile2 + 
 			" -BQSR " + table + regionStr 
 		LogWriter.dbgLog("vc/region_" + chrRegion, t0, "base2\t" + cmdStr, config)
@@ -792,18 +792,21 @@ def dnaVariantCalling(tmpFileBase: String, t0: Long, chrRegion: String, config: 
 	val standemit = if (config.getSEC == "0") " " else (" -stand_emit_conf " + config.getSEC)
 	
 	val gatkFolder = "gatk1"
+	LogWriter.dbgLog("vc/region_" + chrRegion, t0, "unzip1\t" + gatkFolder, config)
 	var cmdStr = "unzip " + gatkFolder + ".zip" 
 	cmdStr.!!
+	LogWriter.dbgLog("vc/region_" + chrRegion, t0, "unzip2\t" + gatkFolder, config)
 	
 	// Haplotype caller
 	cmdStr = javaTmp + " " + MemString + " " + config.getGATKopts + " -jar " + toolsFolder + 
 		gatkFolder + "/GenomeAnalysisTK.jar -T HaplotypeCaller -nct " + config.getNumThreads() + " -R " + FilesManager.getRefFilePath(config) + 
 		" -I " + tmpFile2 + bqsrStr + " --genotyping_mode DISCOVERY -o " + snps + standconf + standemit + 
 		regionStr + " --no_cmdline_in_header --disable_auto_index_creation_and_locking_when_reading_rods"
+	val outLog = new PrintWriter("/home/genomics/tmpspark/" + chrRegion + ".out") 
+	outLog.println(cmdStr)
 	LogWriter.dbgLog("vc/region_" + chrRegion, t0, "haplo1\t" + cmdStr, config)
 	// Hamid
 	//cmdStr.!!
-	val outLog = new PrintWriter("/home/genomics/tmpspark/" + chrRegion + ".out") 
 	val errLog = new PrintWriter("/home/genomics/tmpspark/" + chrRegion + ".err")
 	val logger = ProcessLogger(
 		(o: String) => {
