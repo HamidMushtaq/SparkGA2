@@ -796,11 +796,11 @@ def dnaVariantCalling(tmpFileBase: String, t0: Long, chrRegion: String, config: 
 	LogWriter.dbgLog("vc/region_" + chrRegion, t0, "unzip1\t" + gatkFolder + ".zip -> " + gatkUnzippedFolder, config)
 	var cmdStr = "unzip " + gatkFolder + ".zip -d " + gatkUnzippedFolder 
 	cmdStr.!!
-	LogWriter.dbgLog("vc/region_" + chrRegion, t0, "unzip2\t" + gatkFolder, config)
+	LogWriter.dbgLog("vc/region_" + chrRegion, t0, "unzip2\t" + cmdStr, config)
 	
 	// Haplotype caller
 	cmdStr = javaTmp + " " + MemString + " " + config.getGATKopts + " -jar " + toolsFolder + 
-		gatkUnzippedFolder + "/GenomeAnalysisTK.jar -T HaplotypeCaller -nct " + config.getNumThreads + 
+		gatkUnzippedFolder + "/" + gatkFolder + "/GenomeAnalysisTK.jar -T HaplotypeCaller -nct " + config.getNumThreads + 
 		" -R " + FilesManager.getRefFilePath(config) + 
 		" -I " + tmpFile2 + bqsrStr + " --genotyping_mode DISCOVERY -o " + snps + standconf + standemit + 
 		regionStr + " --no_cmdline_in_header --disable_auto_index_creation_and_locking_when_reading_rods"
