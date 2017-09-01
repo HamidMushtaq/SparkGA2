@@ -619,7 +619,8 @@ def variantCall(chrRegion: String, config: Configuration) : Array[((Integer, Int
 		DownloadManager.downloadVCFTools(config)
 	}
 	
-	try 
+	// Hamid
+	//try 
 	{
 		picardPreprocess(tmpFileBase, config)
 		if ((config.getMode != "local") && ProgramFlags.downloadNeededFiles)
@@ -637,14 +638,14 @@ def variantCall(chrRegion: String, config: Configuration) : Array[((Integer, Int
 		LogWriter.dbgLog("vc/region_" + chrRegion, t0, "vcf\tOutput written to vcf file", config)
 		return retArray
 	} 
-	catch 
+	/*catch 
 	{
 		case e: Exception => {
 			LogWriter.dbgLog("vc/region_" + chrRegion, t0, "exception\tAn exception occurred: " + ExceptionUtils.getStackTrace(e), config)
 			LogWriter.statusLog("Variant call error:", t0, "Variant calling failed for " + chrRegion, config)
 			return null
 		}
-	}
+	}*/
 }
 
 def picardPreprocess(tmpFileBase: String, config: Configuration)
@@ -796,7 +797,24 @@ def dnaVariantCalling(tmpFileBase: String, t0: Long, chrRegion: String, config: 
 		bqsrStr + " --genotyping_mode DISCOVERY -o " + snps + standconf + standemit + 
 		regionStr + " --no_cmdline_in_header --disable_auto_index_creation_and_locking_when_reading_rods"
 	LogWriter.dbgLog("vc/region_" + chrRegion, t0, "haplo1\t" + cmdStr, config)
-	cmdStr.!!
+	// Hamid
+	//cmdStr.!!
+	val outLog = new PrintWriter("/home/genomics/tmpSpark/" + chrRegion + ".out") 
+	val errLog = new PrintWriter("/home/genomics/tmpSpark/" + chrRegion + ".err")
+	val logger = ProcessLogger(
+		(o: String) => {
+			outLog.println(o)
+			outLog.flush
+			},
+		(e: String) => {
+			errLog.println(e)
+			errLog.flush
+		} // do nothing
+	)
+	cmdStr ! logger;
+	outLog.close
+	errLog.close
+	//
 	
 	// Delete temporary files
 	LogWriter.dbgLog("vc/region_" + chrRegion, t0, "haplo2\tDeleting files " + tmpFile2 + ", " + (tmpFileBase + ".bed") +
