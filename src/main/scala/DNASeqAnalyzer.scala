@@ -799,8 +799,8 @@ def dnaVariantCalling(tmpFileBase: String, t0: Long, chrRegion: String, config: 
 	LogWriter.dbgLog("vc/region_" + chrRegion, t0, "haplo1\t" + cmdStr, config)
 	// Hamid
 	//cmdStr.!!
-	val outLog = new PrintWriter("/home/genomics/tmpSpark/" + chrRegion + ".out") 
-	val errLog = new PrintWriter("/home/genomics/tmpSpark/" + chrRegion + ".err")
+	val outLog = new PrintWriter("/home/genomics/tmpspark/" + chrRegion + ".out") 
+	val errLog = new PrintWriter("/home/genomics/tmpspark/" + chrRegion + ".err")
 	val logger = ProcessLogger(
 		(o: String) => {
 			outLog.println(o)
