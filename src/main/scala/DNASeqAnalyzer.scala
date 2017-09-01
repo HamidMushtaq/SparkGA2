@@ -791,10 +791,14 @@ def dnaVariantCalling(tmpFileBase: String, t0: Long, chrRegion: String, config: 
 	val standconf = if (config.getSCC == "0") " " else (" -stand_call_conf " + config.getSCC)
 	val standemit = if (config.getSEC == "0") " " else (" -stand_emit_conf " + config.getSEC)
 	
+	val gatkFolder = "gatk1"
+	var cmdStr = "unzip " + gatkFolder + ".zip" 
+	cmdStr.!!
+	
 	// Haplotype caller
-	var cmdStr = javaTmp + " " + MemString + " " + config.getGATKopts + " -jar " + toolsFolder + 
-		"GenomeAnalysisTKHT.jar -T HaplotypeCaller -nct " + config.getNumThreads() + " -R " + FilesManager.getRefFilePath(config) + " -I " + tmpFile2 + 
-		bqsrStr + " --genotyping_mode DISCOVERY -o " + snps + standconf + standemit + 
+	cmdStr = javaTmp + " " + MemString + " " + config.getGATKopts + " -jar " + toolsFolder + 
+		gatkFolder + "/GenomeAnalysisTK.jar -T HaplotypeCaller -nct " + config.getNumThreads() + " -R " + FilesManager.getRefFilePath(config) + 
+		" -I " + tmpFile2 + bqsrStr + " --genotyping_mode DISCOVERY -o " + snps + standconf + standemit + 
 		regionStr + " --no_cmdline_in_header --disable_auto_index_creation_and_locking_when_reading_rods"
 	LogWriter.dbgLog("vc/region_" + chrRegion, t0, "haplo1\t" + cmdStr, config)
 	// Hamid
