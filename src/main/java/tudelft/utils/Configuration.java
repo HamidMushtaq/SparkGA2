@@ -59,10 +59,14 @@ public class Configuration implements Serializable
 	private HashSet<String> ignoreListSet;
 	private HashMap<Integer, Integer> chrArrayIndexMap;
 	
-	public void initialize(String configFile, String part)
+	public void initialize(String configFilePath, String deployMode, String part)
 	{	
 		try
 		{
+			String configFile = configFilePath;
+			if (deployMode.equals("cluster"))
+				configFile = getFileNameFromPath(configFilePath);
+			
 			File file = new File(configFile);
 			DocumentBuilderFactory documentBuilderFactory = DocumentBuilderFactory.newInstance();
 			DocumentBuilder documentBuilder = documentBuilderFactory.newDocumentBuilder();
@@ -109,9 +113,6 @@ public class Configuration implements Serializable
 			scc	= document.getElementsByTagName("standCC").item(0).getTextContent();
 			sec	= document.getElementsByTagName("standEC").item(0).getTextContent();
 			useKnownIndels = document.getElementsByTagName("useKnownIndels").item(0).getTextContent();
-			
-			if ((!mode.equals("local")) && (!mode.equals("hadoop")))
-				throw new IllegalArgumentException("Unrecognized mode type (" + mode + "). It should be either local or hadoop.");
 	
 			startTime = System.currentTimeMillis();
 			

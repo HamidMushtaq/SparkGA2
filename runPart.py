@@ -11,8 +11,8 @@ import subprocess
 import math
 import glob
 
-MASTER = "yarn"
-DEPLOY_MODE = "cluster" # or client
+#master: "spark://n001:7077" or "yarn"
+#deploy_mode: "client" or "cluster"
 
 if len(sys.argv) < 3:
 	print("Not enough arguments!")
@@ -63,8 +63,11 @@ def executeHadoop(part, ni, em, extra_param):
 	dictHDFSPath = refPath.replace(".fasta", ".dict")
 	dictPath = './' + dictHDFSPath[dictHDFSPath.rfind('/') + 1:]
 	
-	if DEPLOY_MODE != "cluster":
-		os.system('cp ' + configFilePath + ' ./')
+	master_and_deploy_mode = mode.split('-')
+	master = master_and_deploy_mode[0]
+	deploy_mode = master_and_deploy_mode[1]
+
+	if deploy_mode != "cluster":
 		if not os.path.exists(tmpFolder):
 			os.makedirs(tmpFolder)
 	
@@ -74,20 +77,23 @@ def executeHadoop(part, ni, em, extra_param):
 		toolsStr = toolsStr + t + ','
 	toolsStr = toolsStr[0:-1]
 	
+	libs = glob.glob('lib/*')
+	libsStr = ''
+	for jarfile in libs:
+		libsStr = libsStr + jarfile + ','
+	libsStr = libsStr[0:-1]
+
 	cmdStr = "$SPARK_HOME/bin/spark-submit " + \
-	"--jars lib/htsjdk-1.143.jar " + \
-	"--class \"DNASeqAnalyzer\" --master " + MASTER + " --deploy-mode " + DEPLOY_MODE + " " + \
+	"--jars " + libsStr + " " + \
+	"--class \"DNASeqAnalyzer\" --master " + master + " --deploy-mode " + deploy_mode + " " + \
 	"--files " + configFilePath + "," + dictPath + "," + toolsStr + " " + \
 	"--driver-memory " + driver_mem + " --executor-memory " + em + " " + \
 	"--num-executors " + ni + " --executor-cores " + numTasks + " " + \
-	exeName + " " + os.path.basename(configFilePath) + " " + str(part) + extra_param
+	exeName + " " + configFilePath + " " + str(part) + extra_param
 	
 	print cmdStr
 	addToLog("[" + time.ctime() + "] " + cmdStr)
 	os.system(cmdStr)
-	
-	if DEPLOY_MODE != "cluster":
-		os.remove('./' + configFilePath[configFilePath.rfind('/') + 1:])
 	
 def executeLocal(part, extra_param):
 	if not os.path.exists(tmpFolder):

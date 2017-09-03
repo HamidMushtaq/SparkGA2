@@ -804,23 +804,23 @@ def dnaVariantCalling(tmpFileBase: String, t0: Long, chrRegion: String, config: 
 		" -R " + FilesManager.getRefFilePath(config) + 
 		" -I " + tmpFile2 + bqsrStr + " --genotyping_mode DISCOVERY -o " + snps + standconf + standemit + 
 		regionStr + " --no_cmdline_in_header --disable_auto_index_creation_and_locking_when_reading_rods"
-	val outLog = new PrintWriter("/home/genomics/tmpspark/" + chrRegion + ".out") 
+	val hdfsManager = new HDFSManager
+	val outLog = hdfsManager.open(config.getOutputFolder + "stdout/" + chrRegion + ".out") 
 	outLog.println(cmdStr)
 	LogWriter.dbgLog("vc/region_" + chrRegion, t0, "haplo1\t" + cmdStr, config)
 	// Hamid
 	//cmdStr.!!
-	val errLog = new PrintWriter("/home/genomics/tmpspark/" + chrRegion + ".err")
+	val errLog = hdfsManager.open(config.getOutputFolder + "stderr/" + chrRegion + ".err")
 	val logger = ProcessLogger(
 		(o: String) => {
 			outLog.println(o)
-			outLog.flush
 			},
 		(e: String) => {
 			errLog.println(e)
-			errLog.flush
 		} // do nothing
 	)
-	cmdStr ! logger;
+	val status = cmdStr ! logger;
+	outLog.println("\n============================\nExit value = " + status + "\n============================")
 	outLog.close
 	errLog.close
 	//
@@ -916,18 +916,17 @@ def getBamFileSize(fileID: String, config: Configuration) : Long =
 
 def main(args: Array[String]) 
 {
-	val config = new Configuration()
-	config.initialize(args(0), args(1))
+	val conf = new SparkConf().setAppName("DNASeqAnalyzer")
 	val part = args(1).toInt
 	val part2Region = if (part == 2) args(2).toInt else 0
-	val conf = new SparkConf().setAppName("DNASeqAnalyzer")
 	
-	if (config.getMode == "local")
+	// Have to find a way to progammatically know if running in local mode
+	/*if (config.getMode == "local")
 	{
 		conf.setMaster("local[" + config.getNumInstances() + "]")
 		conf.set("spark.cores.max", config.getNumInstances())
 	}
-	else
+	else*/
 	{
 		conf.set("spark.shuffle.blockTransferService", "nio") 
 		if (ProgramFlags.compressRDDs)
@@ -944,6 +943,8 @@ def main(args: Array[String])
 	conf.set("spark.driver.maxResultSize", "4g")
    
 	val sc = new SparkContext(conf)
+	val config = new Configuration()
+	config.initialize(args(0), sc.deployMode, args(1))
 	val bcConfig = sc.broadcast(config)
 	val hdfsManager = new HDFSManager
 	
