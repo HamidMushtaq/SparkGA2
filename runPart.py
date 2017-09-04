@@ -11,7 +11,8 @@ import subprocess
 import math
 import glob
 
-USE_YARN_CLIENT_FOR_HADOOP = False
+#master: "spark://n001:7077" or "yarn"
+#deploy_mode: "client" or "cluster"
 
 if len(sys.argv) < 3:
 	print("Not enough arguments!")
@@ -62,12 +63,13 @@ def executeHadoop(part, ni, em, extra_param):
 	dictHDFSPath = refPath.replace(".fasta", ".dict")
 	dictPath = './' + dictHDFSPath[dictHDFSPath.rfind('/') + 1:]
 	
-	if USE_YARN_CLIENT_FOR_HADOOP:
-		os.system('cp ' + configFilePath + ' ./')
+	master_and_deploy_mode = mode.split('-')
+	master = master_and_deploy_mode[0]
+	deploy_mode = master_and_deploy_mode[1]
+
+	if deploy_mode != "cluster":
 		if not os.path.exists(tmpFolder):
 			os.makedirs(tmpFolder)
-	
-	diff_str = "yarn-client" if USE_YARN_CLIENT_FOR_HADOOP else "yarn-cluster"
 	
 	tools = glob.glob(toolsFolder + '/*')
 	toolsStr = ''
@@ -75,20 +77,26 @@ def executeHadoop(part, ni, em, extra_param):
 		toolsStr = toolsStr + t + ','
 	toolsStr = toolsStr[0:-1]
 	
+	libs = glob.glob('lib/*')
+	libsStr = ''
+	for jarfile in libs:
+		libsStr = libsStr + jarfile + ','
+	libsStr = libsStr[0:-1]
+
 	cmdStr = "$SPARK_HOME/bin/spark-submit " + \
-	"--jars lib/htsjdk-1.143.jar " + \
-	"--class \"DNASeqAnalyzer\" --master " + diff_str + " " + \
+	"--jars " + libsStr + " " + \
+	"--class \"DNASeqAnalyzer\" --master " + master + " --deploy-mode " + deploy_mode + " " + \
 	"--files " + configFilePath + "," + dictPath + "," + toolsStr + " " + \
+	"--conf spark.executorEnv.GATK_GPU=\"1\" " + \
+	"--conf spark.executorEnv.PAIRHMM_PATH=\"/home/genomics/4Hamid/shanshan/files/pairHMMKernel.cubin\" " + \
+	"--conf spark.executorEnv.PHMM_N_THREADS=\"8\" " + \
 	"--driver-memory " + driver_mem + " --executor-memory " + em + " " + \
 	"--num-executors " + ni + " --executor-cores " + numTasks + " " + \
-	exeName + " " + os.path.basename(configFilePath) + " " + str(part) + extra_param
+	exeName + " " + configFilePath + " " + str(part) + extra_param
 	
 	print cmdStr
 	addToLog("[" + time.ctime() + "] " + cmdStr)
 	os.system(cmdStr)
-	
-	if USE_YARN_CLIENT_FOR_HADOOP:
-		os.remove('./' + configFilePath[configFilePath.rfind('/') + 1:])
 	
 def executeLocal(part, extra_param):
 	if not os.path.exists(tmpFolder):

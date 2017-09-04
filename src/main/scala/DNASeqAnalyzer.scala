@@ -619,7 +619,8 @@ def variantCall(chrRegion: String, config: Configuration) : Array[((Integer, Int
 		DownloadManager.downloadVCFTools(config)
 	}
 	
-	try 
+	// Hamid
+	//try 
 	{
 		picardPreprocess(tmpFileBase, config)
 		if ((config.getMode != "local") && ProgramFlags.downloadNeededFiles)
@@ -637,14 +638,14 @@ def variantCall(chrRegion: String, config: Configuration) : Array[((Integer, Int
 		LogWriter.dbgLog("vc/region_" + chrRegion, t0, "vcf\tOutput written to vcf file", config)
 		return retArray
 	} 
-	catch 
+	/*catch 
 	{
 		case e: Exception => {
 			LogWriter.dbgLog("vc/region_" + chrRegion, t0, "exception\tAn exception occurred: " + ExceptionUtils.getStackTrace(e), config)
 			LogWriter.statusLog("Variant call error:", t0, "Variant calling failed for " + chrRegion, config)
 			return null
 		}
-	}
+	}*/
 }
 
 def picardPreprocess(tmpFileBase: String, config: Configuration)
@@ -705,7 +706,7 @@ def indelRealignment(tmpFileBase: String, t0: Long, chrRegion: String, config: C
 	val javaTmp = if (ProgramFlags.useTmpDirForJava) ("java -Djava.io.tmpdir=" + config.getTmpFolder) else  "java"
 	
 	// Realigner target creator
-	var cmdStr = javaTmp + " " + MemString + " " + config.getGATKopts + " -jar " + toolsFolder + 
+	var cmdStr = javaTmp + " " + MemString + " -jar " + toolsFolder + 
 		"GenomeAnalysisTK.jar -T RealignerTargetCreator -nt " + config.getNumThreads() + " -R " + FilesManager.getRefFilePath(config) + 
 		" -I " + preprocess + indelStr + " -o " + targets + regionStr
 	LogWriter.dbgLog("vc/region_" + chrRegion, t0, "indel1\t" + cmdStr, config)
@@ -742,7 +743,7 @@ def baseQualityScoreRecalibration(tmpFileBase: String, t0: Long, chrRegion: Stri
 	val javaTmp = if (ProgramFlags.useTmpDirForJava) ("java -Djava.io.tmpdir=" + config.getTmpFolder) else  "java"
 	
 	// Base recalibrator
-	var cmdStr = javaTmp + " " + MemString + " " + config.getGATKopts + " -jar " + toolsFolder + 
+	var cmdStr = javaTmp + " " + MemString + " -jar " + toolsFolder + 
 		"GenomeAnalysisTK.jar -T BaseRecalibrator -nct " + config.getNumThreads() + " -R " + FilesManager.getRefFilePath(config) + " -I " + 
 		tmpFile1 + " -o " + table + regionStr + " --disable_auto_index_creation_and_locking_when_reading_rods" + indelStr + " -knownSites " + knownSite
 	LogWriter.dbgLog("vc/region_" + chrRegion, t0, "base1\t" + cmdStr, config)
@@ -751,7 +752,7 @@ def baseQualityScoreRecalibration(tmpFileBase: String, t0: Long, chrRegion: Stri
 	if (ProgramFlags.doPrintReads)
 	{
 		// Print reads
-		cmdStr = javaTmp + " " + MemString + " " + config.getGATKopts + " -jar " + toolsFolder + 
+		cmdStr = javaTmp + " " + MemString + " -jar " + toolsFolder + 
 			"GenomeAnalysisTK.jar -T PrintReads -R " + FilesManager.getRefFilePath(config) + " -I " + tmpFile1 + " -o " + tmpFile2 + 
 			" -BQSR " + table + regionStr 
 		LogWriter.dbgLog("vc/region_" + chrRegion, t0, "base2\t" + cmdStr, config)
@@ -759,8 +760,10 @@ def baseQualityScoreRecalibration(tmpFileBase: String, t0: Long, chrRegion: Stri
 	
 		// Hamid - Save output of baseQualityScoreRecalibration
 		if (ProgramFlags.saveAllStages)
+		{
 			FilesManager.uploadFileToOutput(tmpFile2, "baseOutput", false, config)
-	
+			FilesManager.uploadFileToOutput(tmpFile2.replace(".bam", ".bai"), "baseOutput", false, config)
+		}
 		// Delete temporary files
 		LogWriter.dbgLog("vc/region_" + chrRegion, t0, "base3(doPrintReads)\tDeleting files " + tmpFile1 + " and " + table, config)
 		new File(tmpFile1).delete
@@ -785,14 +788,42 @@ def dnaVariantCalling(tmpFileBase: String, t0: Long, chrRegion: String, config: 
 	val MemString = config.getExecMemX()
 	val regionStr = " -L " + tmpFileBase + ".bed"
 	val javaTmp = if (ProgramFlags.useTmpDirForJava) ("java -Djava.io.tmpdir=" + config.getTmpFolder) else  "java"
+	val standconf = if (config.getSCC == "0") " " else (" -stand_call_conf " + config.getSCC)
+	val standemit = if (config.getSEC == "0") " " else (" -stand_emit_conf " + config.getSEC)
+	
+	val gatkFolder = "gatk1"
+	val gatkUnzippedFolder = gatkFolder + chrRegion
+	LogWriter.dbgLog("vc/region_" + chrRegion, t0, "unzip1\t" + gatkFolder + ".zip -> " + gatkUnzippedFolder, config)
+	var cmdStr = "unzip " + gatkFolder + ".zip -d " + gatkUnzippedFolder 
+	cmdStr.!!
+	LogWriter.dbgLog("vc/region_" + chrRegion, t0, "unzip2\t" + cmdStr, config)
 	
 	// Haplotype caller
-	var cmdStr = javaTmp + " " + MemString + " " + config.getGATKopts + " -jar " + toolsFolder + 
-		"GenomeAnalysisTK.jar -T HaplotypeCaller -nct " + config.getNumThreads() + " -R " + FilesManager.getRefFilePath(config) + " -I " + tmpFile2 + 
-		bqsrStr + " --genotyping_mode DISCOVERY -o " + snps + " -stand_call_conf " + config.getSCC() + " -stand_emit_conf " + config.getSEC() + 
+	cmdStr = javaTmp + " " + MemString + " " + config.getGATKopts + " -jar " + toolsFolder + 
+		gatkUnzippedFolder + "/" + gatkFolder + "/GenomeAnalysisTK.jar -T HaplotypeCaller -nct " + config.getNumThreads + 
+		" -R " + FilesManager.getRefFilePath(config) + 
+		" -I " + tmpFile2 + bqsrStr + " --genotyping_mode DISCOVERY -o " + snps + standconf + standemit + 
 		regionStr + " --no_cmdline_in_header --disable_auto_index_creation_and_locking_when_reading_rods"
+	val hdfsManager = new HDFSManager
+	val outLog = hdfsManager.open(config.getOutputFolder + "stdout/" + chrRegion + ".out") 
+	outLog.println(cmdStr)
 	LogWriter.dbgLog("vc/region_" + chrRegion, t0, "haplo1\t" + cmdStr, config)
-	cmdStr.!!
+	// Hamid
+	//cmdStr.!!
+	val errLog = hdfsManager.open(config.getOutputFolder + "stderr/" + chrRegion + ".err")
+	val logger = ProcessLogger(
+		(o: String) => {
+			outLog.println(o)
+			},
+		(e: String) => {
+			errLog.println(e)
+		} // do nothing
+	)
+	val status = cmdStr ! logger;
+	outLog.println("\n============================\nExit value = " + status + "\n============================")
+	outLog.close
+	errLog.close
+	//
 	
 	// Delete temporary files
 	LogWriter.dbgLog("vc/region_" + chrRegion, t0, "haplo2\tDeleting files " + tmpFile2 + ", " + (tmpFileBase + ".bed") +
@@ -885,18 +916,17 @@ def getBamFileSize(fileID: String, config: Configuration) : Long =
 
 def main(args: Array[String]) 
 {
-	val config = new Configuration()
-	config.initialize(args(0), args(1))
+	val conf = new SparkConf().setAppName("DNASeqAnalyzer")
 	val part = args(1).toInt
 	val part2Region = if (part == 2) args(2).toInt else 0
-	val conf = new SparkConf().setAppName("DNASeqAnalyzer")
 	
-	if (config.getMode == "local")
+	// Have to find a way to progammatically know if running in local mode
+	/*if (config.getMode == "local")
 	{
 		conf.setMaster("local[" + config.getNumInstances() + "]")
 		conf.set("spark.cores.max", config.getNumInstances())
 	}
-	else
+	else*/
 	{
 		conf.set("spark.shuffle.blockTransferService", "nio") 
 		if (ProgramFlags.compressRDDs)
@@ -913,6 +943,8 @@ def main(args: Array[String])
 	conf.set("spark.driver.maxResultSize", "4g")
    
 	val sc = new SparkContext(conf)
+	val config = new Configuration()
+	config.initialize(args(0), sc.deployMode, args(1))
 	val bcConfig = sc.broadcast(config)
 	val hdfsManager = new HDFSManager
 	
@@ -964,6 +996,7 @@ def main(args: Array[String])
 		}
 	});
 	//////////////////////////////////////////////////////////////////////////
+	LogWriter.statusLog("Program flags:", t0, ProgramFlags.toString, config)
 	if (part == 1)
 	{
 		val inputFileNames = FilesManager.getInputFileNames(config.getInputFolder, config).filter(x => x.contains(".fq"))  
@@ -972,7 +1005,6 @@ def main(args: Array[String])
 			println("The input directory " + config.getInputFolder() + " does not exist!")
 			System.exit(1)
 		}
-		LogWriter.statusLog("Program flags:", t0, ProgramFlags.toString, config)
 		inputFileNames.foreach(println)
 	
 		// Give chunks to bwa instances
