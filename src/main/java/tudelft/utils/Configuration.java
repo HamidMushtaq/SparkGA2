@@ -315,7 +315,7 @@ public class Configuration implements Serializable
 	public String getExecMemX()
 	{
 		Integer value = Integer.parseInt(vcMemGB) * 1024;
-		Integer execValue = value - 1280; // 1280 mb less
+		Integer execValue = value; // - 1280; // 1280 mb less
 		
 		return "-Xmx" + execValue.toString() + "m";
 	}
