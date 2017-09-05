@@ -84,6 +84,17 @@ object FilesManager
 			return new String(Files.readAllBytes(Paths.get(fname)))
 	}
 	
+	def exists(filePath: String, config: Configuration) : Boolean =
+	{
+		if (config.getMode == "local")
+			return new File(filePath).exists
+		else
+		{
+			val hdfsManager = new HDFSManager
+			return hdfsManager.exists(filePath)
+		}
+	}
+	
 	def readWholeLocalFile(fname: String) : String =
 	{
 		return new String(Files.readAllBytes(Paths.get(fname)))

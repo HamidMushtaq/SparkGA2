@@ -10,8 +10,9 @@ import time
 import subprocess
 import math
 import glob
+import multiprocessing
 
-#master: "spark://n001:7077" or "yarn"
+#master: for example, "spark://n001:7077" or "yarn"
 #deploy_mode: "client" or "cluster"
 
 if len(sys.argv) < 3:
@@ -19,8 +20,8 @@ if len(sys.argv) < 3:
 	print("Example of usage: ./runPart.py config.xml 2")
 	sys.exit(1)
 
-#exeName = "target/scala-2.11/dnaseqanalyzer_2.11-1.0.jar"
 exeName = "dnaseqanalyzer_2.11-1.0.jar"
+chunkerExeName = "chunker_2.11-1.0.jar"
 logFile = "time.txt"
 configFilePath = sys.argv[1]
 partNumber = sys.argv[2]
@@ -44,6 +45,8 @@ numRegionsForLB = doc.getElementsByTagName("numRegionsForLB")[0].firstChild
 part2Iters = "1" if (numRegionsForLB == None) else numRegionsForLB.data
 exe_mem = doc.getElementsByTagName("execMemGB" + configPart)[0].firstChild.data + "g"
 driver_mem = doc.getElementsByTagName("driverMemGB" + configPart)[0].firstChild.data + "g"
+
+streamingBWA = False if ((inputFolder.find(':') == -1) or (int(partNumber) != 1)) else True
 
 print "mode = |" + mode + "|"
 
@@ -144,12 +147,32 @@ def runLocalMode(part):
 	if part == 3:
 		os.system('mv ' + tmpFolder + '/*.vcf ' + outputFolder)
 	
+def executeChunker():
+	chunkerConfigFilePath = inputFolder.split(':')[0]
+	doc = minidom.parse(chunkerConfigFilePath)
+	driver_mem_chunker = doc.getElementsByTagName("driverMemGB")[0].firstChild.data + "g"
+	
+	cmdStr = "$SPARK_HOME/bin/spark-submit " + \
+	"--class \"hmushtaq.fastqchunker.Chunker\" --master local[*] --driver-memory " + driver_mem_chunker + " " + chunkerExeName + " " + chunkerConfigFilePath
+	
+	print cmdStr
+	os.system(cmdStr)
+	
 start_time = time.time()
 
 if (mode == "local"):
 	runLocalMode(int(partNumber))
 else:
-	runHadoopMode(int(partNumber))
+	if streamingBWA:
+		job1 = multiprocessing.Process(target=executeChunker)
+		job1.start()
+		job2 = multiprocessing.Process(target=runHadoopMode, args=(1,))
+		job2.start()
+		# Wait for both jobs to finish
+		job1.join()
+		job2.join()
+	else:
+		runHadoopMode(int(partNumber))
 	
 time_in_secs = int(time.time() - start_time)
 mins = time_in_secs / 60

@@ -92,6 +92,25 @@ def bwaRun (chunkName: String, config: Configuration) : Array[(Long, Int)] =
 		return null
 	}
 	
+	//////////////////////////////////////////////////////////////////////////
+	if (config.isStreaming)
+	{
+		val chunkNum = x.split('.')(0)
+		while(!FilesManager.exists(config.getInputFolder + "ulStatus/" + chunkNum, config))
+		{
+			if (FilesManager.exists(config.getInputFolder + "ulStatus/end.txt", config))
+			{
+				if (!FilesManager.exists(config.getInputFolder + "ulStatus/" + chunkNum, config))
+				{
+					LogWriter.dbgLog("bwa/" + x, t0, "#\tchunkNum = " + chunkNum + ", end.txt exists but this file doesn't!", config)
+					return Array.empty[(Long, Int)]
+				}
+			}
+			Thread.sleep(1000)
+		}
+	}
+	//////////////////////////////////////////////////////////////////////////
+	
 	if (inputFileIsUnzipped)
 	{
 		val s = FilesManager.readWholeFile(inputFileName, config)
@@ -1017,25 +1036,47 @@ def main(args: Array[String])
 	LogWriter.statusLog("Program flags:", t0, ProgramFlags.toString, config)
 	if (part == 1)
 	{
-		val inputFileNames = FilesManager.getInputFileNames(config.getInputFolder, config).filter(x => x.contains(".fq"))  
-		if (inputFileNames == null)
+		if (config.isStreaming)
 		{
-			println("The input directory " + config.getInputFolder() + " does not exist!")
-			System.exit(1)
-		}
-		inputFileNames.foreach(println)
-	
-		// Give chunks to bwa instances
-		val inputData = sc.parallelize(inputFileNames, inputFileNames.size) 
+			val groupSize = config.getStreamGroupSize.toInt
+			val indexes = (0 until groupSize).toArray
+			val inputFileNames = indexes.map(x => x + ".fq.gz")
+			inputFileNames.foreach(println)
 		
-		// Run instances of bwa and get the output as Key Value pairs
-		// <Chr&Pos, SRLine>
-		val bwaOut = inputData.flatMap(x => bwaRun(x, bcConfig.value))
-		bwaOut.setName("rdd_bwaOut")
-		bwaOut.persist(MEMORY_AND_DISK_SER)
-		val bwaOutStr = bwaOut.map(x => x._1 + ":" + x._2)
-		bwaOutStr.setName("rdd_bwaOutStr")
-		bwaOutStr.saveAsTextFile(config.getOutputFolder + "chrPositions")
+			// Give chunks to bwa instances
+			val inputData = sc.parallelize(inputFileNames, inputFileNames.size) 
+			
+			// Run instances of bwa and get the output as Key Value pairs
+			// <Chr&Pos, SRLine>
+			val bwaOut = inputData.flatMap(x => bwaRun(x, bcConfig.value))
+			bwaOut.setName("rdd_bwaOut")
+			bwaOut.persist(MEMORY_AND_DISK_SER)
+			val bwaOutStr = bwaOut.map(x => x._1 + ":" + x._2)
+			bwaOutStr.setName("rdd_bwaOutStr")
+			bwaOutStr.saveAsTextFile(config.getOutputFolder + "chrPositions")
+		}
+		else
+		{
+			val inputFileNames = FilesManager.getInputFileNames(config.getInputFolder, config).filter(x => x.contains(".fq"))  
+			if (inputFileNames == null)
+			{
+				println("The input directory " + config.getInputFolder() + " does not exist!")
+				System.exit(1)
+			}
+			inputFileNames.foreach(println)
+		
+			// Give chunks to bwa instances
+			val inputData = sc.parallelize(inputFileNames, inputFileNames.size) 
+			
+			// Run instances of bwa and get the output as Key Value pairs
+			// <Chr&Pos, SRLine>
+			val bwaOut = inputData.flatMap(x => bwaRun(x, bcConfig.value))
+			bwaOut.setName("rdd_bwaOut")
+			bwaOut.persist(MEMORY_AND_DISK_SER)
+			val bwaOutStr = bwaOut.map(x => x._1 + ":" + x._2)
+			bwaOutStr.setName("rdd_bwaOutStr")
+			bwaOutStr.saveAsTextFile(config.getOutputFolder + "chrPositions")
+		}
 	}
 	else if (part == 2)
 	{	
