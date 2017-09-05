@@ -777,6 +777,7 @@ def baseQualityScoreRecalibration(tmpFileBase: String, t0: Long, chrRegion: Stri
 def dnaVariantCalling(tmpFileBase: String, t0: Long, chrRegion: String, config: Configuration)
 {
 	val toolsFolder = FilesManager.getToolsDirPath(config)
+	val gpusInfoFileName = "gpus.txt"
 	val tmpFile2 = {
 		if (ProgramFlags.doPrintReads) 
 			tmpFileBase + "-3.bam" 
@@ -793,7 +794,22 @@ def dnaVariantCalling(tmpFileBase: String, t0: Long, chrRegion: String, config: 
 	val standconf = if (config.getSCC == "0") " " else (" -stand_call_conf " + config.getSCC)
 	val standemit = if (config.getSEC == "0") " " else (" -stand_emit_conf " + config.getSEC)
 	
-	val gatkFolder = "gatk1"
+	var gpuNumber = 1
+	val gpusInfoFile = new File(gpusInfoFileName)
+	if (gpusInfoFile.exists)
+	{
+		val br = new BufferedReader(new FileReader(gpusInfoFileName))
+		val numOfGpus = br.readLine.trim.toInt
+		br.close
+		val regionNum = chrRegion.split('_')(1).toInt
+		gpuNumber = regionNum % numOfGpus
+		LogWriter.dbgLog("vc/region_" + chrRegion, t0, "unzip0\tnumOfGpus = " + numOfGpus + ", regionNum = " + regionNum + 
+			", gpuNumber = " + gpuNumber, config)
+	}
+	else
+		LogWriter.dbgLog("vc/region_" + chrRegion, t0, "unzip0\tgpus.txt does not exist, so using gpu 1", config)
+	
+	val gatkFolder = "gatk" + gpuNumber
 	val gatkUnzippedFolder = gatkFolder + chrRegion
 	LogWriter.dbgLog("vc/region_" + chrRegion, t0, "unzip1\t" + gatkFolder + ".zip -> " + gatkUnzippedFolder, config)
 	var cmdStr = "unzip " + gatkFolder + ".zip -d " + gatkUnzippedFolder 
