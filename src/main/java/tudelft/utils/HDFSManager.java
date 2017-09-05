@@ -357,22 +357,6 @@ public class HDFSManager
 			ex.printStackTrace();
 		}
 	}
-	
-	public void uploadFileToOutput(String fileName, String outputPath, boolean delSrc, Configuration config)
-	{
-		try 
-		{
-			new File(config.getTmpFolder() + "." + fileName + ".crc").delete();
-			// Now upload
-			fs.copyFromLocalFile(delSrc, true, 
-				new org.apache.hadoop.fs.Path(config.getTmpFolder() + fileName), 
-				new org.apache.hadoop.fs.Path(config.getOutputFolder() + outputPath + "/" + fileName));
-		}
-		catch (Exception ex)
-		{
-			ex.printStackTrace();
-		}
-	}
 
 	public String[] getFileList(String hdfsFolder)
 	{
