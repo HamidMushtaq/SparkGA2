@@ -1,0 +1,12 @@
+<configuration>
+	<fastq1Path>ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/phase3/data/HG00096/sequence_read/SRR062634_1.filt.fastq.gz</fastq1Path> 
+	<fastq2Path>ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/phase3/data/HG00096/sequence_read/SRR062634_2.filt.fastq.gz</fastq2Path>
+	<outputFolder>chunks</outputFolder> 
+	<compLevel>4</compLevel>
+	<chunkSizeMB>60</chunkSizeMB>
+	<blockSizeMB>0.08738</blockSizeMB>
+	<driverMemGB>4</driverMemGB>
+	<numThreads>4</numThreads>
+	<!-- interleave field is ignored obviously for a single ended input -->
+	<interleave>true</interleave> 
+</configuration>

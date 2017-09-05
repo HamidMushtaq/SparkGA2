@@ -343,6 +343,20 @@ public class HDFSManager
 			ex.printStackTrace();
 		}
 	}
+	
+	public void upload(boolean delSrc, String fileName, String localFolder, String hdfsFolder)
+	{
+		try
+		{	
+			fs.copyFromLocalFile(delSrc, true, 
+				new Path(localFolder + fileName), 
+				new Path(hdfsFolder + fileName));
+		}
+		catch (Exception ex) 
+		{
+			ex.printStackTrace();
+		}
+	}
 
 	public String[] getFileList(String hdfsFolder)
 	{

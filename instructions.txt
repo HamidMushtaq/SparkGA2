@@ -1,0 +1,32 @@
+* First of all copy all the reference files to a directory on each node. This folder name corresponds to the sfFolder in the xml config file.
+
+* Copy all the following tools to a local folder. This local folder corresponds to toolsFolder in the xml config file.
+	- bwa
+	- bedtools
+	- CleanSam.jar
+	- GenomeAnalysisTK.jar (Original)
+	- MarkDuplicates.jar
+	- If you are using gpu accelerated haplo type caller, make a folder gatk1, and put the corresponding modified GenomeAnalysisTK.jar and lib folder inside it. Then zip that folder to create the gatk1.zip file (zip -r gatk1.zip gatk). Even if you are not using gpu, you must make such a folder and put the GenomeAnalysisTK.jar file in it. In that case, just put the original GenomeAnalysisTK.jar file in that folder.
+	- If you are using more than one gpus, lets say 4, there would be 4 modified GenomeAnalysisTK.jar files with their corresponding lib files. Put them in folders, gatk0, gatk1, gatk2 and gatk3 respectively, and zip each of them. Also create a file gpus.txt, writing the number of gpus in the first line (4, for this example).
+	
+* If you are using gpus, or the vectorized library, you need to copy the folder of that library to each node. For example, if you are using the vectorized library, then you use the following for the gatkOpts option in the configuration file,
+	<gatkOpts>-XX:+AggressiveOpts -Djava.library.path=/home/genomics/4Hamid/shanshan/files/PairHMM_Vector_Power8_Ubuntu/</gatkOpts>
+Which means that the PairHMM_Vector_Power8_Ubuntu folder should be present in the directory /home/genomics/4Hamid/shanshan/files/PairHMM_Vector_Power8_Ubuntu/ of each node, in this case.
+
+* The gpu accelerated version also requires a *.cubin file. For example, if you look at the runPart.py given in this folder, you would notice the following line.
+	"--conf spark.executorEnv.PAIRHMM_PATH=\"/home/genomics/4Hamid/shanshan/files/pairHMMKernel.cubin\" " 
+It means, you must put the pairHMMKernel.cubin file in the /home/genomics/4Hamid/shanshan/files directory of each node.
+
+* You can make the input chunks either separately, or in parallel (in a streaming fashion) with the main program. If you want to do chunking separately, then you can issue the following command first.
+	./run.py chunker_2.11-1.0.jar config/chunker/config.xml
+Make sure in this case you have the input *.gz files mentioned in config/chunker/config.xml. Alternatively, you could stream directly from the web (See config/chunker/config_ftp.xml) for an example.
+
+* Then you can run the program by using runAll.py. If you want to run each part separately, then use runPart.py. For example, like following.
+	python runPart.py config/vector.xml 1 &> log1.txt
+	python runPart.py config/vector.xml 2 &> log2.txt
+	python runPart.py config/vector.xml 3 &> log3.txt
+I have noticed that runAll.py doesn't work properly on the Power8 machine. So, you could just write a simple bash script with those 3 commands.
+
+* If you want to run the chunker in paralle, all you need to do is to put something like the following in the inputFolder tag.
+	<inputFolder>config/chunker/config.xml:128:chunks</inputFolder>
+Here config/chunker/config.xml is the config file given to the chunker utility. 128 is the number of chunks that you except. This should be at least equal to the number of chunks that would be created. Always make a higher guess and never a lower one. Finally, chunks is the input folder. This should be the same as the outputFolder in the chunker's config file.

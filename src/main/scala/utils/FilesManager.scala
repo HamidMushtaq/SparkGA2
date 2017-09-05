@@ -158,26 +158,14 @@ object FilesManager
 	
 	def uploadFileToOutput(filePath: String, outputPath: String, delSrc: Boolean, config: Configuration)
 	{
-		try 
+		if (config.getMode != "local")
 		{
-			if (config.getMode() != "local")
-			{
-				val fileName = getFileNameFromPath(filePath)
-				new File(config.getTmpFolder + "." + fileName + ".crc").delete()
-				// Now upload
-				val hconfig = new org.apache.hadoop.conf.Configuration()
-				hconfig.addResource(new org.apache.hadoop.fs.Path(config.getHadoopInstall + "etc/hadoop/core-site.xml"))
-				hconfig.addResource(new org.apache.hadoop.fs.Path(config.getHadoopInstall + "etc/hadoop/hdfs-site.xml"))
-			
-				val fs = org.apache.hadoop.fs.FileSystem.get(hconfig)
-				fs.copyFromLocalFile(delSrc, true, new org.apache.hadoop.fs.Path(config.getTmpFolder + fileName), 
-					new org.apache.hadoop.fs.Path(config.getOutputFolder + outputPath + "/" + fileName))
-			}
-		}
-		catch 
-		{
-			case e: Exception => LogWriter.errLog(outputPath, 0, 
-				"\tException in uploadFileToOutput: " + ExceptionUtils.getStackTrace(e) , config) 
+			val fileName = getFileNameFromPath(filePath)
+			val f = new File(config.getTmpFolder + "." + fileName + ".crc")
+			if (f.exists)
+				f.delete
+			val hdfsManager = new HDFSManager
+			hdfsManager.upload(delSrc, fileName, config.getTmpFolder, config.getOutputFolder + outputPath + "/")
 		}
 	}
 	
