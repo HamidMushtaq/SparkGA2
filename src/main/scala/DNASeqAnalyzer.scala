@@ -137,13 +137,15 @@ def bwaRun (chunkName: String, config: Configuration) : Array[(Long, Int)] =
 	
 	LogWriter.dbgLog("bwa/" + x, t0, "1\tbwa mem started: " + command_str, config)
 	val samRegionsParser = new SamRegionsParser(x, writerMap, config)
+	val errLog = hdfsManager.open(config.getOutputFolder + "stderr/bwa/" + x + ".err")
 	val logger = ProcessLogger(
 		(o: String) => {
 			samRegionsParser.append(o)
 			},
-		(e: String) => {} // do nothing
+		(e: String) => {errLog.println(e)} // do nothing
 	)
 	command_str ! logger;
+	errLog.close
 	
 	LogWriter.dbgLog("bwa/" + x, t0, "2a\t" + "bwa (size = " + (new File(FilesManager.getBinToolsDirPath(config) + "bwa").length) + 
 		") mem completed for %s -> Number of key value pairs = %d, reads = %d, badLines = %d".format(x, writerMap.size, 

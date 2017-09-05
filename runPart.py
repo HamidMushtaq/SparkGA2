@@ -89,7 +89,7 @@ def executeHadoop(part, ni, em, extra_param):
 	"--files " + configFilePath + "," + dictPath + "," + toolsStr + " " + \
 	"--conf spark.executorEnv.GATK_GPU=\"1\" " + \
 	"--conf spark.executorEnv.PAIRHMM_PATH=\"/home/genomics/4Hamid/shanshan/files/pairHMMKernel.cubin\" " + \
-	"--conf spark.executorEnv.PHMM_N_THREADS=\"8\" " + \
+	"--conf spark.executorEnv.PHMM_N_THREADS=\"1\" " + \
 	"--driver-memory " + driver_mem + " --executor-memory " + em + " " + \
 	"--num-executors " + ni + " --executor-cores " + numTasks + " " + \
 	exeName + " " + configFilePath + " " + str(part) + extra_param
