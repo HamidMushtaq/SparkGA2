@@ -810,7 +810,7 @@ def dnaVariantCalling(tmpFileBase: String, t0: Long, chrRegion: String, config: 
 		LogWriter.dbgLog("vc/region_" + chrRegion, t0, "unzip0\tgpus.txt does not exist, so using gpu 1", config)
 	
 	val gatkFolder = "gatk" + gpuNumber
-	val gatkUnzippedFolder = gatkFolder + chrRegion
+	val gatkUnzippedFolder = gatkFolder + "_" + chrRegion
 	LogWriter.dbgLog("vc/region_" + chrRegion, t0, "unzip1\t" + gatkFolder + ".zip -> " + gatkUnzippedFolder, config)
 	var cmdStr = "unzip " + gatkFolder + ".zip -d " + gatkUnzippedFolder 
 	cmdStr.!!
