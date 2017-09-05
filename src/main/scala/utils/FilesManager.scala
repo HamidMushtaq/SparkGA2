@@ -161,6 +161,9 @@ object FilesManager
 		if (config.getMode != "local")
 		{
 			val fileName = getFileNameFromPath(filePath)
+			val f = new File(config.getTmpFolder + "." + fileName + ".crc")
+			if (f.exists)
+				f.delete
 			val hdfsManager = new HDFSManager
 			hdfsManager.upload(delSrc, fileName, config.getTmpFolder, config.getOutputFolder + outputPath + "/")
 		}
