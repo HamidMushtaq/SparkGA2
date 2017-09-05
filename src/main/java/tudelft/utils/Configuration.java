@@ -201,7 +201,18 @@ public class Configuration implements Serializable
 	
 	public String getInputFolder()
 	{
-		return inputFolder;
+		return inputFolder.substring(inputFolder.lastIndexOf(':') + 1);
+	}
+	
+	public boolean isStreaming()
+	{
+		return inputFolder.contains(":");
+	}
+	
+	public String getStreamGroupSize()
+	{
+		String[] s = inputFolder.split(":");
+		return s[1];
 	}
 	
 	public String getOutputFolder()
