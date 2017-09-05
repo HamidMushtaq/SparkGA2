@@ -148,7 +148,7 @@ def runLocalMode(part):
 		os.system('mv ' + tmpFolder + '/*.vcf ' + outputFolder)
 	
 def executeChunker():
-	chunkerConfigFilePathTag = inputFolder.split(':')[0]
+	chunkerConfigFilePath = inputFolder.split(':')[0]
 	doc = minidom.parse(chunkerConfigFilePath)
 	driver_mem_chunker = doc.getElementsByTagName("driverMemGB")[0].firstChild.data + "g"
 	
