@@ -21,12 +21,14 @@ It means, you must put the pairHMMKernel.cubin file in the /home/genomics/4Hamid
 	./run.py chunker_2.11-1.0.jar config/chunker/config.xml
 Make sure in this case you have the input *.gz files mentioned in config/chunker/config.xml. Alternatively, you could stream directly from the web (See config/chunker/config_ftp.xml) for an example.
 
-* Then you can run the program by using runAll.py. Before running the program, you must also have the reference's *.dict file (human_g1k_v37_decoy.dict in our case) in that folder. If you want to run each part separately, then use runPart.py. For example, like following.
+* Then you can run the program by using runAll.py. Before running the program, you must also have the reference's *.dict file (human_g1k_v37_decoy.dict in our case) in that folder. Moreover, you must have the compiled jar file as well as the lib folder containing the htsjdk-1.143.jar. If you want to run each part separately, then use runPart.py. For example, like following.
 	python runPart.py config/vector.xml 1 &> log1.txt
 	python runPart.py config/vector.xml 2 &> log2.txt
 	python runPart.py config/vector.xml 3 &> log3.txt
-I have noticed that runAll.py doesn't work properly on the Power8 machine. So, you could just write a simple bash script with those 3 commands.
+I have noticed that runAll.py doesn't work properly on the Power8 machine. So, you could just write a simple bash script with those 3 commands. 
 
-* If you want to run the chunker in paralle, all you need to do is to put something like the following in the inputFolder tag.
+* If you want to run the chunker in parallel, all you need to do is to put something like the following in the inputFolder tag.
 	<inputFolder>config/chunker/config.xml:128:chunks</inputFolder>
 Here config/chunker/config.xml is the config file given to the chunker utility. 128 is the number of chunks that you except. This should be at least equal to the number of chunks that would be created. Always make a higher guess and never a lower one. Finally, chunks is the input folder. This should be the same as the outputFolder in the chunker's config file.
+=====================================================================================================================================================================================
+I have put an example folder SparkGA on the n001 machine. You can just go there and type ./runAll.sh config/with_chunker.xml for example to see the program run. The output is created in a folder outputb4. At the end you would have the sparkCombined.vcf file there.
