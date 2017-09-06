@@ -164,6 +164,10 @@ if (mode == "local"):
 	runLocalMode(int(partNumber))
 else:
 	if streamingBWA:
+		chunksFolder = inputFolder.split(':')[-1]
+		cmdStr = "hadoop fs -rm -r -f -skipTrash " + chunksFolder
+		addToLog("[" + time.ctime() + "] StreamBWA: " + cmdStr)
+		os.system(cmdStr)
 		job1 = multiprocessing.Process(target=executeChunker)
 		job1.start()
 		job2 = multiprocessing.Process(target=runHadoopMode, args=(1,))
