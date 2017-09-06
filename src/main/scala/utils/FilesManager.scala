@@ -17,6 +17,7 @@
 package utils
 
 import tudelft.utils._
+import tudelft.utils.filemanagement.FileManagerFactory
 import java.io._
 import java.nio.file.{Paths, Files}
 import sys.process._
@@ -76,7 +77,7 @@ object FilesManager
 
 	def readWholeFile(fname: String, config: Configuration) : String =
 	{
-		val hdfsManager = new HDFSManager
+		val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem)
 		
 		if (config.getMode != "local")
 			return hdfsManager.readWholeFile(fname)
@@ -90,7 +91,7 @@ object FilesManager
 			return new File(filePath).exists
 		else
 		{
-			val hdfsManager = new HDFSManager
+			val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem)
 			return hdfsManager.exists(filePath)
 		}
 	}
@@ -107,7 +108,7 @@ object FilesManager
 
 	def readPartialFile(fname: String, bytes: Int, config: Configuration) : String =
 	{
-		val hdfsManager = new HDFSManager
+		val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem)
 		
 		if (config.getMode != "local")
 			return hdfsManager.readPartialFile(fname, bytes)
@@ -117,7 +118,7 @@ object FilesManager
 
 	def writeWholeFile(fname: String, s: String, config: Configuration)
 	{
-		val hdfsManager = new HDFSManager
+		val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem)
 		
 		if (config.getMode != "local")
 			hdfsManager.writeWholeFile(fname, s)
@@ -128,7 +129,7 @@ object FilesManager
 	def getInputFileNames(dir: String, config: Configuration) : Array[String] = 
 	{
 		val mode = config.getMode
-		val hdfsManager = new HDFSManager
+		val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem)
 		
 		if (mode != "local")
 		{
@@ -164,7 +165,7 @@ object FilesManager
 			val f = new File(config.getTmpFolder + "." + fileName + ".crc")
 			if (f.exists)
 				f.delete
-			val hdfsManager = new HDFSManager
+			val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem)
 			hdfsManager.upload(delSrc, fileName, config.getTmpFolder, config.getOutputFolder + outputPath + "/")
 		}
 	}

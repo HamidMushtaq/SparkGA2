@@ -42,6 +42,7 @@ import scala.collection.parallel.ForkJoinTaskSupport
 import scala.util.Random
 
 import tudelft.utils._
+import tudelft.utils.filemanagement.FileManagerFactory
 import utils._
 
 import org.apache.commons.lang3.exception.ExceptionUtils
@@ -66,7 +67,7 @@ def bwaRun (chunkName: String, config: Configuration) : Array[(Long, Int)] =
 			config.getInputFolder + x + gz 
 	}
 	val fqFileName = config.getTmpFolder + x
-	val hdfsManager = new HDFSManager
+	val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem)
 	
 	var t0 = System.currentTimeMillis
 	
@@ -250,7 +251,7 @@ def getSamRecords(x: String, lbRegion: Int, chrPosMap: scala.collection.Map[Long
 {
 	val bfr = new BinaryFileReader
 	val ab = scala.collection.mutable.ArrayBuffer.empty[(Int, Array[Byte])]
-	val hdfsManager = new HDFSManager
+	val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem)
 	
 	if (config.getMode != "local")
 		hdfsManager.create(config.getOutputFolder + "log/gsr/" + lbRegion + "/" + x)
@@ -302,7 +303,7 @@ def getRegion(chrRegion: Integer, lbRegion: Integer, samRecordsZipped: Array[Arr
 	config: Configuration) : (Int, Array[SAMRecord]) =
 {
 	val writeInString = true
-	val hdfsManager = new HDFSManager
+	val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem)
 	
 	var t0 = System.currentTimeMillis
 	
@@ -469,7 +470,7 @@ def createBAMAndBEDFiles(chrRegion: Integer, lbRegion: Integer, samRecordsSorted
 {	
 	val tmpFileBase = config.getTmpFolder + lbRegion + "_" + chrRegion
 	val tmpOut1 = tmpFileBase + "-p1.bam"
-	val hdfsManager = new HDFSManager
+	val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem)
 	
 	if (config.getMode != "local")
 		hdfsManager.create(config.getOutputFolder + "log/bam/" + lbRegion + "/region_" + chrRegion.toString)
@@ -555,7 +556,7 @@ def createBAMAndBEDFiles(chrRegion: Integer, lbRegion: Integer, samRecordsSorted
 def makeRegionFile(tmpFileBase: String, r: ChromosomeRange, config: Configuration)
 {
 	val bedFile = tmpFileBase + ".bed"
-	val hdfsManager = new HDFSManager
+	val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem)
 	
 	if (config.useExome())
 	{
@@ -613,7 +614,7 @@ def variantCall(chrRegion: String, config: Configuration) : Array[((Integer, Int
 {
 	val tmpFileBase = config.getTmpFolder + chrRegion
 	var t0 = System.currentTimeMillis
-	val hdfsManager = new HDFSManager
+	val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem)
 	
 	if (config.getMode != "local")
 	{
@@ -841,7 +842,7 @@ def dnaVariantCalling(tmpFileBase: String, t0: Long, chrRegion: String, config: 
 		" -R " + FilesManager.getRefFilePath(config) + 
 		" -I " + tmpFile2 + bqsrStr + " --genotyping_mode DISCOVERY -o " + snps + standconf + standemit + 
 		regionStr + " --no_cmdline_in_header --disable_auto_index_creation_and_locking_when_reading_rods"
-	val hdfsManager = new HDFSManager
+	val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem)
 	val outLog = hdfsManager.open(config.getOutputFolder + "stdout/" + chrRegion + ".out") 
 	outLog.println(cmdStr)
 	LogWriter.dbgLog("vc/region_" + chrRegion, t0, "haplo1\t" + cmdStr, config)
@@ -882,7 +883,7 @@ def getVCF(chrRegion: String, config: Configuration) : Array[((Integer, Integer)
 	{
 		if (config.getMode != "local") // For the optional Part 4 only, where the vcf file is not already in the tmp dir
 		{
-			val hdfsManager = new HDFSManager
+			val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem)
 			hdfsManager.download(chrRegion + ".vcf", config.getOutputFolder + "vcOut/", config.getTmpFolder, false)
 			// Hamid: Write the processor info ///////////////////////////////
 			val procInfo = FilesManager.readWholeLocalFile("/proc/cpuinfo")
@@ -947,7 +948,7 @@ def readRegionsMap(regionsMap: scala.collection.mutable.HashMap[Long, Int], conf
 
 def getBamFileSize(fileID: String, config: Configuration) : Long =
 {
-	val hdfsManager = new HDFSManager
+	val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem)
 	return hdfsManager.getFileSize(config.getOutputFolder + "bam/" + fileID + "-p1.bam")
 }
 
@@ -983,7 +984,7 @@ def main(args: Array[String])
 	val config = new Configuration()
 	config.initialize(args(0), sc.deployMode, args(1))
 	val bcConfig = sc.broadcast(config)
-	val hdfsManager = new HDFSManager
+	val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem)
 	
 	// Comment these two lines if you want to see more verbose messages from Spark
 	//Logger.getLogger("org").setLevel(Level.OFF);

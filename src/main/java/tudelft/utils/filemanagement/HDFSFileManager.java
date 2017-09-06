@@ -28,12 +28,12 @@ import java.lang.*;
 import java.nio.charset.Charset;
 import java.nio.channels.FileChannel;
 
-public class HadoopFileManager extends FileManager
+public class HDFSFileManager extends FileManager
 {
 	private final static boolean DISABLE_CACHE = false;
 	private FileSystem fs;
 	
-	public HadoopFileManager() throws IOException
+	public HDFSFileManager() throws IOException
 	{
 		org.apache.hadoop.conf.Configuration config = new org.apache.hadoop.conf.Configuration();
 		if (DISABLE_CACHE)
