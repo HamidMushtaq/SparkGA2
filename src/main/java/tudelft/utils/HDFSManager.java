@@ -22,35 +22,51 @@ import org.apache.hadoop.io.*;
 import java.util.*;
 import java.io.*;
 import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.net.*;
 import java.lang.*;
 import java.nio.charset.Charset;
+import java.nio.channels.FileChannel;
 
 public class HDFSManager
 {
 	private final static boolean DISABLE_CACHE = false;
+	private final static boolean USE_GPFS = false;
 	private org.apache.hadoop.conf.Configuration config;
 	private FileSystem fs;
 	
 	public HDFSManager() throws IOException
 	{
-		config = new org.apache.hadoop.conf.Configuration();
-		if (DISABLE_CACHE)
-			config.setBoolean("fs.hdfs.impl.disable.cache", true);
-		fs = FileSystem.get(config);
+		if (!USE_GPFS)
+		{
+			config = new org.apache.hadoop.conf.Configuration();
+			if (DISABLE_CACHE)
+				config.setBoolean("fs.hdfs.impl.disable.cache", true);
+			fs = FileSystem.get(config);
+		}
 	}
 	
 	public void create(String fname) throws IOException
 	{
 		try
 		{
-			Path filenamePath = new Path(fname);  
+			if (USE_GPFS)
+			{
+				File f = new File(fname);
+				if (f.getParentFile() != null)
+					f.getParentFile().mkdirs();
+				f.createNewFile();
+			}
+			else
+			{
+				Path filenamePath = new Path(fname);  
 		
-			if (fs.exists(filenamePath))
-				fs.delete(filenamePath, true);
+				if (fs.exists(filenamePath))
+					fs.delete(filenamePath, true);
 				
-			FSDataOutputStream fout = fs.create(filenamePath);
-			fout.close();
+				FSDataOutputStream fout = fs.create(filenamePath);
+				fout.close();
+			}
 		}
 		catch (IOException ex) 
 		{
@@ -62,15 +78,26 @@ public class HDFSManager
 	{
 		try
 		{
-			Path filenamePath = new Path(fname);  
-		
-			if (fs.exists(filenamePath))
-				fs.delete(filenamePath, true);
-				
-			FSDataOutputStream fout = fs.create(filenamePath);
-			Charset UTF8 = Charset.forName("utf-8");
-			PrintWriter writer = new PrintWriter(new OutputStreamWriter(fout, UTF8));
-			return writer;
+			if (USE_GPFS)
+			{
+				File f = new File(fname);
+				if (f.getParentFile() != null)
+					f.getParentFile().mkdirs();
+				PrintWriter writer = new PrintWriter(f);
+				return writer;
+			}
+			else
+			{
+				Path filenamePath = new Path(fname);  
+			
+				if (fs.exists(filenamePath))
+					fs.delete(filenamePath, true);
+					
+				FSDataOutputStream fout = fs.create(filenamePath);
+				Charset UTF8 = Charset.forName("utf-8");
+				PrintWriter writer = new PrintWriter(new OutputStreamWriter(fout, UTF8));
+				return writer;
+			}
 		}
 		catch (IOException ex) 
 		{
@@ -83,9 +110,14 @@ public class HDFSManager
 	{
 		try
 		{
-			Path filenamePath = new Path(fname);  
+			if (USE_GPFS)
+				return new File(fname).exists();
+			else
+			{
+				Path filenamePath = new Path(fname);  
 		
-			return fs.exists(filenamePath);		
+				return fs.exists(filenamePath);
+			}
 		}
 		catch (IOException ex) 
 		{
@@ -104,10 +136,19 @@ public class HDFSManager
 	{
 		try
 		{			
-			FSDataOutputStream fout = fs.append(new Path(fname));
-			PrintWriter writer = new PrintWriter(fout);
-			writer.append(s);
-			writer.close();
+			if (USE_GPFS)
+			{
+				FileWriter fw = new FileWriter(fname, true); // true to append the new data
+				fw.write(s);								 // appends the string to the file
+				fw.close();
+			}
+			else
+			{
+				FSDataOutputStream fout = fs.append(new Path(fname));
+				PrintWriter writer = new PrintWriter(fout);
+				writer.append(s);
+				writer.close();
+			}
 		}
 		catch (IOException ex) 
 		{
@@ -118,17 +159,22 @@ public class HDFSManager
 	public String readWholeFile(String fname)
 	{
 		try
-		{			
-			StringBuilder builder=new StringBuilder();
-			byte[] buffer=new byte[8192000];
-			int bytesRead;
+		{
+			if (USE_GPFS)
+				return new String(Files.readAllBytes(Paths.get(fname)), "UTF-8");
+			else
+			{
+				StringBuilder builder=new StringBuilder();
+				byte[] buffer=new byte[8192000];
+				int bytesRead;
   
-			FSDataInputStream in = fs.open(new Path(fname));
-			while ((bytesRead = in.read(buffer)) > 0) 
-				builder.append(new String(buffer, 0, bytesRead, "UTF-8"));
-			in.close();
+				FSDataInputStream in = fs.open(new Path(fname));
+				while ((bytesRead = in.read(buffer)) > 0) 
+					builder.append(new String(buffer, 0, bytesRead, "UTF-8"));
+				in.close();
 			
-			return builder.toString();
+				return builder.toString();
+			}
 		}
 		catch (IOException ex) 
 		{
@@ -140,17 +186,22 @@ public class HDFSManager
 	public byte[] readBytes(String fname)
 	{
 		try
-		{			
-			ByteArrayOutputStream baos = new ByteArrayOutputStream();
-			byte[] buffer=new byte[67108864];
-			int bytesRead;
-  
-			FSDataInputStream in = fs.open(new Path(fname));
-			while ((bytesRead = in.read(buffer)) > 0) 
-				baos.write(buffer, 0, bytesRead);
-			in.close();
-			
-			return baos.toByteArray();
+		{	
+			if (USE_GPFS)
+				return Files.readAllBytes(Paths.get(fname));
+			else
+			{
+				ByteArrayOutputStream baos = new ByteArrayOutputStream();
+				byte[] buffer=new byte[67108864];
+				int bytesRead;
+	  
+				FSDataInputStream in = fs.open(new Path(fname));
+				while ((bytesRead = in.read(buffer)) > 0) 
+					baos.write(buffer, 0, bytesRead);
+				in.close();
+				
+				return baos.toByteArray();
+			}
 		}
 		catch (IOException ex) 
 		{
@@ -163,14 +214,19 @@ public class HDFSManager
 	{
 		try
 		{			
-			StringBuilder builder=new StringBuilder();
-			ByteArrayOutputStream baos = new ByteArrayOutputStream(bytes+1);
-			
-			FSDataInputStream in = fs.open(new Path(fname));
-			IOUtils.copyBytes(in, baos, bytes+1, false);
-			in.close();
-			
-			return new String(baos.toString("UTF-8"));
+			if (USE_GPFS)
+				return new String(Files.readAllBytes(Paths.get(fname)), "UTF-8");
+			else
+			{
+				StringBuilder builder=new StringBuilder();
+				ByteArrayOutputStream baos = new ByteArrayOutputStream(bytes+1);
+				
+				FSDataInputStream in = fs.open(new Path(fname));
+				IOUtils.copyBytes(in, baos, bytes+1, false);
+				in.close();
+				
+				return new String(baos.toString("UTF-8"));
+			}
 		}
 		catch (IOException ex) 
 		{
@@ -183,18 +239,30 @@ public class HDFSManager
 	{
 		try
 		{
-			Path filenamePath = new Path(fname);  
-		
-			if (fs.exists(filenamePath))
-				fs.delete(filenamePath, true);
-				
-			FSDataOutputStream fout = fs.create(filenamePath);
-			Charset UTF8 = Charset.forName("utf-8");
-			PrintWriter writer = new PrintWriter(new OutputStreamWriter(fout, UTF8));
-			writer.write(s);
-			writer.flush();
-			writer.close();
-			fout.close();
+			if (USE_GPFS)
+			{
+				File f = new File(fname);
+				if (f.getParentFile() != null)
+					f.getParentFile().mkdirs();
+				PrintWriter writer = new PrintWriter(f);
+				writer.write(s);
+				writer.close();
+			}
+			else
+			{
+				Path filenamePath = new Path(fname);  
+			
+				if (fs.exists(filenamePath))
+					fs.delete(filenamePath, true);
+					
+				FSDataOutputStream fout = fs.create(filenamePath);
+				Charset UTF8 = Charset.forName("utf-8");
+				PrintWriter writer = new PrintWriter(new OutputStreamWriter(fout, UTF8));
+				writer.write(s);
+				writer.flush();
+				writer.close();
+				fout.close();
+			}
 		}
 		catch (IOException ex) 
 		{
@@ -206,14 +274,26 @@ public class HDFSManager
 	{
 		try
 		{
-			Path filenamePath = new Path(fname);  
+			if (USE_GPFS)
+			{
+				File f = new File(fname);
+				if (f.getParentFile() != null)
+					f.getParentFile().mkdirs();
+				FileOutputStream fos = new FileOutputStream(fname);
+				fos.write(bytes);
+				fos.close();
+			}
+			else
+			{
+				Path filenamePath = new Path(fname);  
 		
-			if (fs.exists(filenamePath))
-				fs.delete(filenamePath, true);
+				if (fs.exists(filenamePath))
+					fs.delete(filenamePath, true);
 				
-			FSDataOutputStream fout = fs.create(filenamePath);
-			fout.write(bytes);
-			fout.close();
+				FSDataOutputStream fout = fs.create(filenamePath);
+				fout.write(bytes);
+				fout.close();
+			}
 		}
 		catch (IOException ex) 
 		{
@@ -224,8 +304,11 @@ public class HDFSManager
 	public void remove(String fname)
 	{
 		try
-		{			
-			fs.delete(new Path(fname), true);
+		{
+			if (USE_GPFS)
+				new File(fname).delete();
+			else
+				fs.delete(new Path(fname), true);
 		}
 		catch (IOException ex) 
 		{
@@ -270,12 +353,26 @@ public class HDFSManager
 	{
 		try
 		{	
-			File f = new File(localFolder + fileName);
-			if (f.exists() && !doNotDeleteIfExisting)
-				f.delete();
+			if (USE_GPFS)
+			{
+				String sourcePath = hdfsFolder + fileName;
+				String destPath = localFolder + fileName;
+				File f = new File(destPath);
+				if (f.exists() && !doNotDeleteIfExisting)
+					f.delete();
+				FileChannel src = new FileInputStream(sourcePath).getChannel();
+				FileChannel dest = new FileOutputStream(destPath).getChannel();
+				dest.transferFrom(src, 0, src.size());
+			}
+			else
+			{
+				File f = new File(localFolder + fileName);
+				if (f.exists() && !doNotDeleteIfExisting)
+					f.delete();
 			
-			fs.copyToLocalFile(new Path(hdfsFolder + fileName), 
-				new Path(localFolder + fileName));
+				fs.copyToLocalFile(new Path(hdfsFolder + fileName), 
+					new Path(localFolder + fileName));
+			}
 				
 			return 1;
 		}
@@ -317,12 +414,22 @@ public class HDFSManager
 	{
 		try
 		{
-			Path path = new Path(filePath);  
-			
-			if (!fs.exists(path))
-				return -1;
+			if (USE_GPFS)
+			{
+				File f = new File(filePath);
+				if (!f.exists())
+					return -1;
+				return f.length();
+			}
 			else
-				return fs.getFileStatus(path).getLen();
+			{
+				Path path = new Path(filePath);  
+			
+				if (!fs.exists(path))
+					return -1;
+				else
+					return fs.getFileStatus(path).getLen();
+			}
 		}
 		catch (IOException ex) 
 		{
@@ -335,8 +442,21 @@ public class HDFSManager
 	{
 		try
 		{	
-			fs.copyFromLocalFile(true, true, new Path(localFolder + fileName), 
-				new Path(hdfsFolder + fileName));
+			if (USE_GPFS)
+			{
+				String destPath = hdfsFolder + fileName;
+				String sourcePath = localFolder + fileName;
+				File f = new File(destPath);
+				if (f.exists())
+					f.delete();
+				FileChannel src = new FileInputStream(sourcePath).getChannel();
+				FileChannel dest = new FileOutputStream(destPath).getChannel();
+				dest.transferFrom(src, 0, src.size());
+				new File(sourcePath).delete();
+			}
+			else
+				fs.copyFromLocalFile(true, true, new Path(localFolder + fileName), 
+					new Path(hdfsFolder + fileName));
 		}
 		catch (Exception ex) 
 		{
@@ -347,10 +467,22 @@ public class HDFSManager
 	public void upload(boolean delSrc, String fileName, String localFolder, String hdfsFolder)
 	{
 		try
-		{	
-			fs.copyFromLocalFile(delSrc, true, 
-				new Path(localFolder + fileName), 
-				new Path(hdfsFolder + fileName));
+		{
+			if (USE_GPFS)
+			{
+				String destPath = hdfsFolder + fileName;
+				String sourcePath = localFolder + fileName;
+				File f = new File(destPath);
+				if (f.exists())
+					f.delete();
+				FileChannel src = new FileInputStream(sourcePath).getChannel();
+				FileChannel dest = new FileOutputStream(destPath).getChannel();
+				dest.transferFrom(src, 0, src.size());
+				if (delSrc)
+					new File(sourcePath).delete();
+			}
+			else
+				fs.copyFromLocalFile(delSrc, true, new Path(localFolder + fileName), new Path(hdfsFolder + fileName));
 		}
 		catch (Exception ex) 
 		{
@@ -362,13 +494,27 @@ public class HDFSManager
 	{
 		try
 		{
-			FileStatus[] status = fs.listStatus(new Path(hdfsFolder));
-			String[] fileNames = new String[status.length];
+			if (USE_GPFS)
+			{
+				File folder = new File(hdfsFolder);
+				File[] listOfFiles = folder.listFiles();
+				String[] fileNames = new String[listOfFiles.length];
+				
+				for (int i = 0; i < listOfFiles.length; i++) 
+					fileNames[i] = listOfFiles[i].getName(); 
+				
+				return fileNames;
+			}
+			else
+			{
+				FileStatus[] status = fs.listStatus(new Path(hdfsFolder));
+				String[] fileNames = new String[status.length];
 
-			for (int i=0; i < status.length; i++)
-				fileNames[i] = status[i].getPath().getName();
+				for (int i=0; i < status.length; i++)
+					fileNames[i] = status[i].getPath().getName();
 
-			return fileNames;
+				return fileNames;
+			}
 		}
 		catch(Exception ex)
 		{
