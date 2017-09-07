@@ -16,6 +16,7 @@
  */
 import tudelft.utils.Configuration
 import utils.GzipCompressor
+import utils.ProgramFlags
 
 class SamRegionsParser(chunkID: String, writerMap: scala.collection.mutable.HashMap[Long, StringBuilder], config: Configuration)
 {

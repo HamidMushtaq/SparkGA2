@@ -17,6 +17,7 @@
 package utils
 
 import tudelft.utils._
+import tudelft.utils.filemanagement.FileManagerFactory
 import java.text._
 import java.net._
 import java.io._
@@ -33,7 +34,7 @@ object LogWriter
 	{
 		val ct = System.currentTimeMillis
 		val at = (ct - config.getStartTime()) / 1000
-		val hdfsManager = new HDFSManager
+		val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem)
 	
 		if (config.getMode != "local")
 		{

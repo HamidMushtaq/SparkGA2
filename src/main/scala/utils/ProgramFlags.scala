@@ -1,3 +1,5 @@
+package utils
+
 // ProgramFlags.scala
 object ProgramFlags
 {
@@ -16,6 +18,8 @@ object ProgramFlags
 	// Optional stages
 	final val doIndelRealignment = false
 	final val doPrintReads = true
+	// 
+	final val distFileSystem = "hdfs"
 	
 	override def toString() = 
 	{
@@ -32,6 +36,7 @@ object ProgramFlags
 		sb.append("readLBInputDirectly = " + readLBInputDirectly + '\n')
 		sb.append("doIndelRealignment = " + doIndelRealignment + '\n')
 		sb.append("doPrintReads = " + doPrintReads + '\n')
+		sb.append("distFileSystem = " + distFileSystem + '\n')
 		
 		sb.toString
 	}
