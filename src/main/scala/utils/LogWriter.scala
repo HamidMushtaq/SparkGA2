@@ -30,7 +30,7 @@ object LogWriter
 		return new SimpleDateFormat("HH:mm:ss").format(Calendar.getInstance().getTime())
 	}
 	
-	private def log(fname: String, key: String, t0: Long, message: String, config: Configuration) = 
+	private def log(fname: String, t0: Long, message: String, config: Configuration) = 
 	{
 		val ct = System.currentTimeMillis
 		val at = (ct - config.getStartTime()) / 1000
@@ -41,7 +41,7 @@ object LogWriter
 			val IP = InetAddress.getLocalHost().toString()
 			val node = IP.substring(0, IP.indexOf('/'))
 			// Node, time, absolute time, key, message
-			hdfsManager.append(fname, node + "\t" + getTimeStamp() + "\t" + 
+			hdfsManager.append(fname, node + "\t[" + getTimeStamp() + "]\t" + 
 				at.toString() + "\t" + message + "\n")
 		}
 		else
@@ -53,19 +53,56 @@ object LogWriter
 			fw.close()
 		}
 	}
-
+	
+	private def log(pw: PrintWriter, t0: Long, message: String, config: Configuration) = 
+	{
+		val ct = System.currentTimeMillis
+		val at = (ct - config.getStartTime()) / 1000
+		
+		if (config.getMode != "local")
+		{
+			val IP = InetAddress.getLocalHost().toString()
+			val node = IP.substring(0, IP.indexOf('/'))
+			// Node, time, absolute time, key, message
+			pw.write(node + "\t[" + getTimeStamp() + "]\t" + at.toString() + "\t" + message + "\n")
+			pw.flush()
+		}
+		else
+		{
+			val s = getTimeStamp() + "\t" + at.toString() + "\t" + message
+			println(s)
+			pw.write(s + "\n") 
+		}
+	}
+	
 	def statusLog(key: String, t0: Long, message: String, config: Configuration) =
 	{
-		log("sparkLog.txt", key, t0, key + "\t" + message, config)
+		log("sparkLog.txt", t0, key + "\t" + message, config)
 	}
 
+	def openWriter(key: String, config: Configuration) : PrintWriter =
+	{
+		if (config.getMode != "local")
+		{
+			val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem)
+			return hdfsManager.open(config.getOutputFolder + "log/" + key)
+		}
+		else
+			return new PrintWriter(config.getOutputFolder + "log/" + key)
+	}
+	
 	def dbgLog(key: String, t0: Long, message: String, config: Configuration) =
 	{
-		log(config.getOutputFolder + "log/" + key, key, t0, message, config)
+		log(config.getOutputFolder + "log/" + key, t0, message, config)
+	}
+	
+	def dbgLog(pw: PrintWriter, t0: Long, message: String, config: Configuration) =
+	{
+		log(pw, t0, message, config)
 	}
 
 	def errLog(key: String, t0: Long, message: String, config: Configuration) =
 	{
-		log("errorLog.txt", key, t0, key + "\t" + message, config)
+		log("errorLog.txt", t0, key + "\t" + message, config)
 	}
 }
