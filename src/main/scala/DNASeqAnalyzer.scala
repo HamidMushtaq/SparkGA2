@@ -71,25 +71,26 @@ def bwaRun (chunkName: String, config: Configuration) : Array[(Long, Int)] =
 	
 	var t0 = System.currentTimeMillis
 	
+	FilesManager.makeDirIfRequired(config.getOutputFolder + "log/bwa", config)
+	val pwLog = LogWriter.openWriter("bwa/" + x, config)
+	
 	if (config.getMode != "local")
 	{
-		hdfsManager.create(config.getOutputFolder + "log/bwa/" + x)
 		val file = new File(FilesManager.getBinToolsDirPath(config) + "bwa") 
 		file.setExecutable(true)
 		if (ProgramFlags.downloadNeededFiles)
 		{
-			LogWriter.dbgLog("bwa/" + x, t0, "download\tDownloading reference files for bwa", config)
+			LogWriter.dbgLog(pwLog, t0, "download\tDownloading reference files for bwa", config)
 			DownloadManager.downloadBWAFiles("dlbwa/" + x, config)
 		}
 	}
-	else
-		FilesManager.makeDirIfRequired(config.getOutputFolder + "log/bwa", config)
 	
-	LogWriter.dbgLog("bwa/" + x, t0, "*\tchunkName = " + chunkName + ", x = " + x + ", inputFileName = " + inputFileName, config)
+	LogWriter.dbgLog(pwLog, t0, "*\tchunkName = " + chunkName + ", x = " + x + ", inputFileName = " + inputFileName, config)
 	
 	if (!Files.exists(Paths.get(FilesManager.getRefFilePath(config))))
 	{
-		LogWriter.dbgLog("bwa/" + x, t0, "#\tReference file " + FilesManager.getRefFilePath(config) + " not found on this node!", config)
+		LogWriter.dbgLog(pwLog, t0, "#\tReference file " + FilesManager.getRefFilePath(config) + " not found on this node!", config)
+		pwLog.close
 		return null
 	}
 	
@@ -103,7 +104,8 @@ def bwaRun (chunkName: String, config: Configuration) : Array[(Long, Int)] =
 			{
 				if (!FilesManager.exists(config.getInputFolder + "ulStatus/" + chunkNum, config))
 				{
-					LogWriter.dbgLog("bwa/" + x, t0, "#\tchunkNum = " + chunkNum + ", end.txt exists but this file doesn't!", config)
+					LogWriter.dbgLog(pwLog, t0, "#\tchunkNum = " + chunkNum + ", end.txt exists but this file doesn't!", config)
+					pwLog.close
 					return Array.empty[(Long, Int)]
 				}
 			}
@@ -116,7 +118,7 @@ def bwaRun (chunkName: String, config: Configuration) : Array[(Long, Int)] =
 	{
 		val s = FilesManager.readWholeFile(inputFileName, config)
 		new PrintWriter(fqFileName) {write(s); close}
-		LogWriter.dbgLog("bwa/" + x, t0, "0a\tSaved the content of unzipped file " + inputFileName + " to local file " + fqFileName, config)
+		LogWriter.dbgLog(pwLog, t0, "0a\tSaved the content of unzipped file " + inputFileName + " to local file " + fqFileName, config)
 	}
 	else
 	{
@@ -126,7 +128,7 @@ def bwaRun (chunkName: String, config: Configuration) : Array[(Long, Int)] =
 			if (config.getMode != "local")
 			{
 				inputFileBytes = hdfsManager.readBytes(inputFileName)
-				LogWriter.dbgLog("bwa/" + x, t0, "0a\tSize of " + inputFileName + " = " + (inputFileBytes.size / (1024 * 1024)) + " MB.", config)
+				LogWriter.dbgLog(pwLog, t0, "0a\tSize of " + inputFileName + " = " + (inputFileBytes.size / (1024 * 1024)) + " MB.", config)
 			}
 			else
 			{
@@ -141,13 +143,13 @@ def bwaRun (chunkName: String, config: Configuration) : Array[(Long, Int)] =
 			if (config.getMode != "local")
 				hdfsManager.download(x + ".gz", config.getInputFolder, config.getTmpFolder, false)
 			val unzipStr = "gunzip -c " + inputFileName
-			LogWriter.dbgLog("bwa/" + x, t0, "0a\t" + unzipStr + ", Input file size = " + ((new File(inputFileName).length) / (1024 * 1024)) + " MB.", config)
+			LogWriter.dbgLog(pwLog, t0, "0a\t" + unzipStr + ", Input file size = " + ((new File(inputFileName).length) / (1024 * 1024)) + " MB.", config)
 			unzipStr #> new java.io.File(fqFileName) !;
 			if (config.getMode != "local")
 				new File(inputFileName).delete
 		}
 	}
-	LogWriter.dbgLog("bwa/" + x, t0, "0b\tFastq file size = " + ((new File(fqFileName).length) / (1024 * 1024)) + " MB", config)
+	LogWriter.dbgLog(pwLog, t0, "0b\tFastq file size = " + ((new File(fqFileName).length) / (1024 * 1024)) + " MB", config)
 	// bwa mem input_files_directory/fasta_file.fasta -p -t 2 x.fq > out_file
 	// Example: bwa mem input_files_directory/fasta_file.fasta -p -t 2 x.fq > out_file
 	// run bwa mem
@@ -155,7 +157,7 @@ def bwaRun (chunkName: String, config: Configuration) : Array[(Long, Int)] =
 	val command_str = progName + FilesManager.getRefFilePath(config) + " " + config.getExtraBWAParams + " -t " + config.getNumThreads + " " + fqFileName
 	var writerMap = new scala.collection.mutable.HashMap[Long, StringBuilder]()
 	
-	LogWriter.dbgLog("bwa/" + x, t0, "1\tbwa mem started: " + command_str, config)
+	LogWriter.dbgLog(pwLog, t0, "1\tbwa mem started: " + command_str, config)
 	val samRegionsParser = new SamRegionsParser(x, writerMap, config)
 	val errLog = hdfsManager.open(config.getOutputFolder + "stderr/bwa/" + x + ".err")
 	val logger = ProcessLogger(
@@ -167,7 +169,7 @@ def bwaRun (chunkName: String, config: Configuration) : Array[(Long, Int)] =
 	command_str ! logger;
 	errLog.close
 	
-	LogWriter.dbgLog("bwa/" + x, t0, "2a\t" + "bwa (size = " + (new File(FilesManager.getBinToolsDirPath(config) + "bwa").length) + 
+	LogWriter.dbgLog(pwLog, t0, "2a\t" + "bwa (size = " + (new File(FilesManager.getBinToolsDirPath(config) + "bwa").length) + 
 		") mem completed for %s -> Number of key value pairs = %d, reads = %d, badLines = %d".format(x, writerMap.size, 
 			samRegionsParser.getNumOfReads, samRegionsParser.getBadLines), config)
 	new File(fqFileName).delete()
@@ -206,7 +208,7 @@ def bwaRun (chunkName: String, config: Configuration) : Array[(Long, Int)] =
 				(k, numOfLines, new GzipCompressor(content.toString, ProgramFlags.compressionLevel).compress)
 		}
 	}.toArray
-	LogWriter.dbgLog("bwa/" + x, t0, "2b\tCompressed the data.\n" + sbDbg.toString, config)
+	LogWriter.dbgLog(pwLog, t0, "2b\tCompressed the data.\n" + sbDbg.toString, config)
 	
 	val retArr = new Array[(Long, Int)](arr.size)
 	
@@ -242,7 +244,8 @@ def bwaRun (chunkName: String, config: Configuration) : Array[(Long, Int)] =
 			hdfsManager.upload(i + "_cmp-" + x, config.getTmpFolder, config.getOutputFolder + "bwaOut/" + i + "/")
 		}
 	}
-	LogWriter.dbgLog("bwa/" + x, t0, "3\t" + "Content uploaded to the HDFS", config)
+	LogWriter.dbgLog(pwLog, t0, "3\t" + "Content uploaded to the HDFS", config)
+	pwLog.close
 	
 	retArr
 }
@@ -616,73 +619,71 @@ def variantCall(chrRegion: String, config: Configuration) : Array[((Integer, Int
 	var t0 = System.currentTimeMillis
 	val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem)
 	
+	FilesManager.makeDirIfRequired(config.getOutputFolder + "log/vc", config)
+	val pwLog = LogWriter.openWriter("vc/region_" + chrRegion, config)
 	if (config.getMode != "local")
 	{
-		if (!hdfsManager.exists(config.getOutputFolder + "log/vc/" + "region_" + chrRegion))
-			hdfsManager.create(config.getOutputFolder + "log/vc/" + "region_" + chrRegion)
-		
 		if (!(new File(config.getTmpFolder).exists))
 			new File(config.getTmpFolder).mkdirs()
 		
 		hdfsManager.download(chrRegion + "-p1.bam", config.getOutputFolder + "bam/", config.getTmpFolder, false)
 		hdfsManager.download(chrRegion + ".bed", config.getOutputFolder + "bed/", config.getTmpFolder, false)
-		LogWriter.dbgLog("vc/region_" + chrRegion, t0, "1\tDownloaded bam and bed files to the local directory!", config)
+		LogWriter.dbgLog(pwLog, t0, "1\tDownloaded bam and bed files to the local directory!", config)
 	}
-	else
-		FilesManager.makeDirIfRequired(config.getOutputFolder + "log/vc", config)
 	
 	val f = new File(tmpFileBase + ".bed");
 	if (!(f.exists() && !f.isDirectory())) 
-		LogWriter.dbgLog("vc/region_" + chrRegion, t0, "#-\tbed file does not exist in the tmp directory!!", config)
+		LogWriter.dbgLog(pwLog, t0, "#-\tbed file does not exist in the tmp directory!!", config)
 	
 	if ((config.getMode != "local") && ProgramFlags.downloadNeededFiles)
 	{
-		LogWriter.dbgLog("vc/region_" + chrRegion, t0, "download\tDownloading vcf tools", config)
+		LogWriter.dbgLog(pwLog, t0, "download\tDownloading vcf tools", config)
 		DownloadManager.downloadVCFTools(config)
 	}
 	
 	// Hamid
 	//try 
 	{
-		picardPreprocess(tmpFileBase, config)
+		picardPreprocess(tmpFileBase, pwLog, config)
 		if ((config.getMode != "local") && ProgramFlags.downloadNeededFiles)
 		{
-			LogWriter.dbgLog("vc/region_" + chrRegion, t0, "download\tDownloading ref files for variant calling", config)
+			LogWriter.dbgLog(pwLog, t0, "download\tDownloading ref files for variant calling", config)
 			DownloadManager.downloadVCFRefFiles("dlvcf/region_" + chrRegion, config)
 		}
 		if (ProgramFlags.doIndelRealignment)
-			indelRealignment(tmpFileBase, t0, chrRegion, config)
-		baseQualityScoreRecalibration(tmpFileBase, t0, chrRegion, config)
-		dnaVariantCalling(tmpFileBase, t0, chrRegion, config)
+			indelRealignment(tmpFileBase, t0, chrRegion, pwLog, config)
+		baseQualityScoreRecalibration(tmpFileBase, t0, chrRegion, pwLog, config)
+		dnaVariantCalling(tmpFileBase, t0, chrRegion, pwLog, config)
 		
 		val retArray = getVCF(chrRegion, config)
 		
-		LogWriter.dbgLog("vc/region_" + chrRegion, t0, "vcf\tOutput written to vcf file", config)
+		LogWriter.dbgLog(pwLog, t0, "vcf\tOutput written to vcf file", config)
+		pwLog.close
 		return retArray
 	} 
 	/*catch 
 	{
 		case e: Exception => {
-			LogWriter.dbgLog("vc/region_" + chrRegion, t0, "exception\tAn exception occurred: " + ExceptionUtils.getStackTrace(e), config)
+			LogWriter.dbgLog(pwLog, t0, "exception\tAn exception occurred: " + ExceptionUtils.getStackTrace(e), config)
+			pwLog.close
 			LogWriter.statusLog("Variant call error:", t0, "Variant calling failed for " + chrRegion, config)
 			return null
 		}
 	}*/
 }
 
-def picardPreprocess(tmpFileBase: String, config: Configuration)
+def picardPreprocess(tmpFileBase: String, pwLog: PrintWriter, config: Configuration)
 {
 	val toolsFolder = FilesManager.getToolsDirPath(config)
 	val tmpOut1 = tmpFileBase + "-p1.bam"
 	val tmpOut2 = tmpFileBase + "-p2.bam"
 	val MemString = config.getExecMemX()
 	val chrRegion = FilesManager.getFileNameFromPath(tmpFileBase)
-	val logFileName = "vc/region_" + chrRegion
 	val MDtmpDir = if (ProgramFlags.useTmpDirForJava) (" TMP_DIR=" + config.getTmpFolder) else ""
 	
 	var t0 = System.currentTimeMillis
 	
-	LogWriter.dbgLog(logFileName, t0, "picard\tPicard processing started", config)
+	LogWriter.dbgLog(pwLog, t0, "picard\tPicard processing started", config)
 	
 	try
 	{
@@ -701,13 +702,13 @@ def picardPreprocess(tmpFileBase: String, config: Configuration)
 			FilesManager.uploadFileToOutput(bamOut, "picardOutput", false, config)
 		
 		// Delete temporary files
-		LogWriter.dbgLog(logFileName, t0, "picard\tDeleting files " + tmpOut1 + ", " + tmpOut2 + ", and " + tmpMetrics, config)
+		LogWriter.dbgLog(pwLog, t0, "picard\tDeleting files " + tmpOut1 + ", " + tmpOut2 + ", and " + tmpMetrics, config)
 		new File(tmpMetrics).delete
 	}
 	catch 
 	{
 		case e: Exception => {
-			LogWriter.dbgLog(logFileName, t0, "exception\tAn exception occurred: " + ExceptionUtils.getStackTrace(e), config)
+			LogWriter.dbgLog(pwLog, t0, "exception\tAn exception occurred: " + ExceptionUtils.getStackTrace(e), config)
 			LogWriter.statusLog("Picard error:", t0, "Picard failed for " + chrRegion, config)
 		}
 	}
@@ -716,7 +717,7 @@ def picardPreprocess(tmpFileBase: String, config: Configuration)
 	new File(tmpOut2).delete
 }
 
-def indelRealignment(tmpFileBase: String, t0: Long, chrRegion: String, config: Configuration) =
+def indelRealignment(tmpFileBase: String, t0: Long, chrRegion: String, pwLog: PrintWriter, config: Configuration) =
 {
 	val toolsFolder = FilesManager.getToolsDirPath(config)
 	val tmpFile1 = tmpFileBase + "-2.bam"
@@ -731,14 +732,14 @@ def indelRealignment(tmpFileBase: String, t0: Long, chrRegion: String, config: C
 	var cmdStr = javaTmp + " " + MemString + " -jar " + toolsFolder + 
 		"GenomeAnalysisTK.jar -T RealignerTargetCreator -nt " + config.getNumThreads() + " -R " + FilesManager.getRefFilePath(config) + 
 		" -I " + preprocess + indelStr + " -o " + targets + regionStr
-	LogWriter.dbgLog("vc/region_" + chrRegion, t0, "indel1\t" + cmdStr, config)
+	LogWriter.dbgLog(pwLog, t0, "indel1\t" + cmdStr, config)
 	cmdStr.!!
 	
 	// Indel realigner
 	cmdStr = javaTmp + " " + MemString + " " + config.getGATKopts + " -jar " + toolsFolder + 
 		"GenomeAnalysisTK.jar -T IndelRealigner -R " + FilesManager.getRefFilePath(config) + " -I " + preprocess + " -targetIntervals " + 
 		targets + indelStr + " -o " + tmpFile1 + regionStr
-	LogWriter.dbgLog("vc/region_" + chrRegion, t0, "indel2\t" + cmdStr, config)
+	LogWriter.dbgLog(pwLog, t0, "indel2\t" + cmdStr, config)
 	cmdStr.!!
 	
 	// Hamid - Save output of indelRealignment
@@ -746,13 +747,13 @@ def indelRealignment(tmpFileBase: String, t0: Long, chrRegion: String, config: C
 		FilesManager.uploadFileToOutput(tmpFile1, "indelOutput", false, config)
 	
 	// Delete temporary files
-	LogWriter.dbgLog("vc/region_" + chrRegion, t0, "indel3\tDeleting files " + preprocess + " and " + targets, config)
+	LogWriter.dbgLog(pwLog, t0, "indel3\tDeleting files " + preprocess + " and " + targets, config)
 	new File(preprocess).delete
 	new File(preprocess.replace(".bam", ".bai")).delete
 	new File(targets).delete
 }
 	
-def baseQualityScoreRecalibration(tmpFileBase: String, t0: Long, chrRegion: String, config: Configuration)
+def baseQualityScoreRecalibration(tmpFileBase: String, t0: Long, chrRegion: String, pwLog: PrintWriter, config: Configuration)
 {
 	val toolsFolder = FilesManager.getToolsDirPath(config)
 	val knownSite = FilesManager.getSnpFilePath(config)
@@ -768,7 +769,7 @@ def baseQualityScoreRecalibration(tmpFileBase: String, t0: Long, chrRegion: Stri
 	var cmdStr = javaTmp + " " + MemString + " -jar " + toolsFolder + 
 		"GenomeAnalysisTK.jar -T BaseRecalibrator -nct " + config.getNumThreads() + " -R " + FilesManager.getRefFilePath(config) + " -I " + 
 		tmpFile1 + " -o " + table + regionStr + " --disable_auto_index_creation_and_locking_when_reading_rods" + indelStr + " -knownSites " + knownSite
-	LogWriter.dbgLog("vc/region_" + chrRegion, t0, "base1\t" + cmdStr, config)
+	LogWriter.dbgLog(pwLog, t0, "base1\t" + cmdStr, config)
 	cmdStr.!!
 
 	if (ProgramFlags.doPrintReads)
@@ -777,7 +778,7 @@ def baseQualityScoreRecalibration(tmpFileBase: String, t0: Long, chrRegion: Stri
 		cmdStr = javaTmp + " " + MemString + " -jar " + toolsFolder + 
 			"GenomeAnalysisTK.jar -T PrintReads -R " + FilesManager.getRefFilePath(config) + " -I " + tmpFile1 + " -o " + tmpFile2 + 
 			" -BQSR " + table + regionStr 
-		LogWriter.dbgLog("vc/region_" + chrRegion, t0, "base2\t" + cmdStr, config)
+		LogWriter.dbgLog(pwLog, t0, "base2\t" + cmdStr, config)
 		cmdStr.!!
 	
 		// Hamid - Save output of baseQualityScoreRecalibration
@@ -787,14 +788,14 @@ def baseQualityScoreRecalibration(tmpFileBase: String, t0: Long, chrRegion: Stri
 			FilesManager.uploadFileToOutput(tmpFile2.replace(".bam", ".bai"), "baseOutput", false, config)
 		}
 		// Delete temporary files
-		LogWriter.dbgLog("vc/region_" + chrRegion, t0, "base3(doPrintReads)\tDeleting files " + tmpFile1 + " and " + table, config)
+		LogWriter.dbgLog(pwLog, t0, "base3(doPrintReads)\tDeleting files " + tmpFile1 + " and " + table, config)
 		new File(tmpFile1).delete
 		new File(tmpFile1.replace(".bam", ".bai")).delete
 		new File(table).delete
 	}
 }
 
-def dnaVariantCalling(tmpFileBase: String, t0: Long, chrRegion: String, config: Configuration)
+def dnaVariantCalling(tmpFileBase: String, t0: Long, chrRegion: String, pwLog: PrintWriter, config: Configuration)
 {
 	val toolsFolder = FilesManager.getToolsDirPath(config)
 	val gpusInfoFileName = "gpus.txt"
@@ -823,18 +824,18 @@ def dnaVariantCalling(tmpFileBase: String, t0: Long, chrRegion: String, config: 
 		br.close
 		val regionNum = chrRegion.split('_')(1).toInt
 		gpuNumber = regionNum % numOfGpus
-		LogWriter.dbgLog("vc/region_" + chrRegion, t0, "unzip0\tnumOfGpus = " + numOfGpus + ", regionNum = " + regionNum + 
+		LogWriter.dbgLog(pwLog, t0, "unzip0\tnumOfGpus = " + numOfGpus + ", regionNum = " + regionNum + 
 			", gpuNumber = " + gpuNumber, config)
 	}
 	else
-		LogWriter.dbgLog("vc/region_" + chrRegion, t0, "unzip0\tgpus.txt does not exist, so using gpu 1", config)
+		LogWriter.dbgLog(pwLog, t0, "unzip0\tgpus.txt does not exist, so using gpu 1", config)
 	
 	val gatkFolder = "gatk" + gpuNumber
 	val gatkUnzippedFolder = gatkFolder + "_" + chrRegion
-	LogWriter.dbgLog("vc/region_" + chrRegion, t0, "unzip1\t" + gatkFolder + ".zip -> " + gatkUnzippedFolder, config)
+	LogWriter.dbgLog(pwLog, t0, "unzip1\t" + gatkFolder + ".zip -> " + gatkUnzippedFolder, config)
 	var cmdStr = "unzip " + gatkFolder + ".zip -d " + gatkUnzippedFolder 
 	cmdStr.!!
-	LogWriter.dbgLog("vc/region_" + chrRegion, t0, "unzip2\t" + cmdStr, config)
+	LogWriter.dbgLog(pwLog, t0, "unzip2\t" + cmdStr, config)
 	
 	// Haplotype caller
 	cmdStr = javaTmp + " " + MemString + " " + config.getGATKopts + " -jar " + toolsFolder + 
@@ -845,7 +846,7 @@ def dnaVariantCalling(tmpFileBase: String, t0: Long, chrRegion: String, config: 
 	val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem)
 	val outLog = hdfsManager.open(config.getOutputFolder + "stdout/" + chrRegion + ".out") 
 	outLog.println(cmdStr)
-	LogWriter.dbgLog("vc/region_" + chrRegion, t0, "haplo1\t" + cmdStr, config)
+	LogWriter.dbgLog(pwLog, t0, "haplo1\t" + cmdStr, config)
 	// Hamid
 	//cmdStr.!!
 	val errLog = hdfsManager.open(config.getOutputFolder + "stderr/" + chrRegion + ".err")
@@ -864,7 +865,7 @@ def dnaVariantCalling(tmpFileBase: String, t0: Long, chrRegion: String, config: 
 	//
 	
 	// Delete temporary files
-	LogWriter.dbgLog("vc/region_" + chrRegion, t0, "haplo2\tDeleting files " + tmpFile2 + ", " + (tmpFileBase + ".bed") +
+	LogWriter.dbgLog(pwLog, t0, "haplo2\tDeleting files " + tmpFile2 + ", " + (tmpFileBase + ".bed") +
 		(if (!ProgramFlags.doPrintReads) (" and " + tmpFileBase + ".table") else "."), config)
 	new File(tmpFile2).delete()
 	new File(tmpFile2.replace(".bam", ".bai")).delete
