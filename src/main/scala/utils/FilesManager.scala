@@ -77,23 +77,15 @@ object FilesManager
 
 	def readWholeFile(fname: String, config: Configuration) : String =
 	{
-		val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem)
+		val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem, config)
 		
-		if (config.getMode != "local")
-			return hdfsManager.readWholeFile(fname)
-		else
-			return new String(Files.readAllBytes(Paths.get(fname)))
+		return hdfsManager.readWholeFile(fname)
 	}
 	
 	def exists(filePath: String, config: Configuration) : Boolean =
 	{
-		if (config.getMode == "local")
-			return new File(filePath).exists
-		else
-		{
-			val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem)
-			return hdfsManager.exists(filePath)
-		}
+		val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem, config)
+		return hdfsManager.exists(filePath)
 	}
 	
 	def readWholeLocalFile(fname: String) : String =
@@ -108,66 +100,36 @@ object FilesManager
 
 	def readPartialFile(fname: String, bytes: Int, config: Configuration) : String =
 	{
-		val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem)
+		val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem, config)
 		
-		if (config.getMode != "local")
-			return hdfsManager.readPartialFile(fname, bytes)
-		else
-			return scala.io.Source.fromFile(fname).mkString
+		return hdfsManager.readPartialFile(fname, bytes)
 	}
 
 	def writeWholeFile(fname: String, s: String, config: Configuration)
 	{
-		val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem)
+		val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem, config)
 		
-		if (config.getMode != "local")
-			hdfsManager.writeWholeFile(fname, s)
-		else
-			new PrintWriter(fname) {write(s); close}
+		hdfsManager.writeWholeFile(fname, s)
 	}
 	
 	def getInputFileNames(dir: String, config: Configuration) : Array[String] = 
 	{
 		val mode = config.getMode
-		val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem)
+		val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem, config)
 		
-		if (mode != "local")
-		{
-			val a: Array[String] = hdfsManager.getFileList(dir)
+		val a: Array[String] = hdfsManager.getFileList(dir)
 
-			return a
-		}
-		else
-		{
-			var d = new File(dir)	
-			
-			if (d.exists && d.isDirectory) 
-			{
-				val list: List[File] = d.listFiles.filter(_.isFile).toList
-				val a: Array[String] = new Array[String](list.size)
-				var i = 0
-				
-				for(i <- 0 until list.size)
-					a(i) = list(i).getName
-				
-				return a
-			} 
-			else
-				return null
-		}
+		return a
 	}
 	
 	def uploadFileToOutput(filePath: String, outputPath: String, delSrc: Boolean, config: Configuration)
 	{
-		if (config.getMode != "local")
-		{
-			val fileName = getFileNameFromPath(filePath)
-			val f = new File(config.getTmpFolder + "." + fileName + ".crc")
-			if (f.exists)
-				f.delete
-			val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem)
-			hdfsManager.upload(delSrc, fileName, config.getTmpFolder, config.getOutputFolder + outputPath + "/")
-		}
+		val fileName = getFileNameFromPath(filePath)
+		val f = new File(config.getTmpFolder + "." + fileName + ".crc")
+		if (f.exists)
+			f.delete
+		val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem, config)
+		hdfsManager.upload(delSrc, fileName, config.getTmpFolder, config.getOutputFolder + outputPath + "/")
 	}
 	
 	def copyExomeBed(exomeBed: String, config: Configuration)
@@ -214,15 +176,5 @@ object FilesManager
 		
 		new PrintWriter(bedFile) {write(s); close}
 		new File(bedFile + ".1").delete()
-	}
-	
-	def makeDirIfRequired(dir: String, config: Configuration)
-	{
-		if (config.getMode == "local")
-		{
-			val file = new File(dir)
-			if (!file.exists)
-				file.mkdir()
-		}			
 	}
 }

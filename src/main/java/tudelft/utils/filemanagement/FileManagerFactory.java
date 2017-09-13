@@ -20,9 +20,9 @@ import java.io.IOException;
 
 public class FileManagerFactory
 {
-	public static FileManager createInstance(String type) throws IOException
+	public static FileManager createInstance(String type, Config config) throws IOException
 	{
-		if (type.equals("gpfs"))
+		if (type.equals("gpfs") || config.getMode() == "local")
 			return new GPFSFileManager();
 		else
 			return new HDFSFileManager();
