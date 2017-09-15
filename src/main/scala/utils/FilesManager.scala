@@ -114,7 +114,6 @@ object FilesManager
 	
 	def getInputFileNames(dir: String, config: Configuration) : Array[String] = 
 	{
-		val mode = config.getMode
 		val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem, config)
 		
 		val a: Array[String] = hdfsManager.getFileList(dir)

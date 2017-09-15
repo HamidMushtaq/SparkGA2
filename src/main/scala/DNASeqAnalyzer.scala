@@ -906,6 +906,9 @@ def main(args: Array[String])
 	val part = args(1).toInt
 	val part2Region = if (part == 2) args(2).toInt else 0
 	
+	println("THE VALUE IS " + new SparkContext(conf).master)
+	System.exit(1)
+	
 	// Have to find a way to progammatically know if running in local mode
 	/*if (config.getMode == "local")
 	{
@@ -1076,7 +1079,7 @@ def main(args: Array[String])
 		val bcChrPosMap = sc.broadcast(regionsMap)
 		val i = part2Region
 		
-		val inputFileNames = FilesManager.getInputFileNames(config.getOutputFolder + "bwaOut/" + i)
+		val inputFileNames = FilesManager.getInputFileNames(config.getOutputFolder + "bwaOut/" + i, config)
 		val inputData = sc.parallelize(inputFileNames, inputFileNames.size)
 		// RDD[(Int, Array[Byte])]
 		val chrToSamRecord1 = inputData.flatMap(x => getSamRecords(x, i, bcChrPosMap.value, bcConfig.value))
