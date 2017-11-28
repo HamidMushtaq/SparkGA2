@@ -639,34 +639,26 @@ def picardPreprocess(tmpFileBase: String, pwLog: PrintWriter, config: Configurat
 	
 	LogWriter.dbgLog(pwLog, t0, "picard\tPicard processing started", config)
 	
-	try
-	{
-		var cmdStr = "java " + MemString + " -jar " + toolsFolder + "CleanSam.jar INPUT=" + tmpOut1 + " OUTPUT=" + tmpOut2
-		cmdStr.!!
-		
-		val bamOut = tmpFileBase + ".bam"
-		val tmpMetrics = tmpFileBase + "-metrics.txt"
-		
-		cmdStr = "java " + MemString + " -jar " + toolsFolder + "MarkDuplicates.jar INPUT=" + tmpOut2 + " OUTPUT=" + bamOut +
-			" METRICS_FILE=" + tmpMetrics + MDtmpDir + " CREATE_INDEX=true";
-		cmdStr.!!
-		
-		// Hamid - Save output of picardPreprocessing
-		if (ProgramFlags.saveAllStages)
-			FilesManager.uploadFileToOutput(bamOut, "picardOutput", false, config)
-		
-		// Delete temporary files
-		LogWriter.dbgLog(pwLog, t0, "picard\tDeleting files " + tmpOut1 + ", " + tmpOut2 + ", and " + tmpMetrics, config)
-		new File(tmpMetrics).delete
-	}
-	catch 
-	{
-		case e: Exception => {
-			LogWriter.dbgLog(pwLog, t0, "exception\tAn exception occurred: " + ExceptionUtils.getStackTrace(e), config)
-			LogWriter.statusLog("Picard error:", t0, "Picard failed for " + chrRegion, config)
-		}
-	}
+	var cmdStr = "java " + MemString + " -jar " + toolsFolder + "CleanSam.jar INPUT=" + tmpOut1 + " OUTPUT=" + tmpOut2
+	var status = execCommand(cmdStr, "cleansam", chrRegion, t0, config)
+	LogWriter.dbgLog(pwLog, t0, "\tExit status = " + status, config)
 	
+	val bamOut = tmpFileBase + ".bam"
+	val tmpMetrics = tmpFileBase + "-metrics.txt"
+	
+	cmdStr = "java " + MemString + " -jar " + toolsFolder + "MarkDuplicates.jar INPUT=" + tmpOut2 + " OUTPUT=" + bamOut +
+		" METRICS_FILE=" + tmpMetrics + MDtmpDir + " CREATE_INDEX=true";
+	status = execCommand(cmdStr, "markdup", chrRegion, t0, config)
+	LogWriter.dbgLog(pwLog, t0, "\tExit status = " + status, config)
+	
+	// Hamid - Save output of picardPreprocessing
+	if (ProgramFlags.saveAllStages)
+		FilesManager.uploadFileToOutput(bamOut, "picardOutput", false, config)
+	
+	// Delete temporary files
+	LogWriter.dbgLog(pwLog, t0, "picard\tDeleting files " + tmpOut1 + ", " + tmpOut2 + ", and " + tmpMetrics, config)
+	new File(tmpMetrics).delete
+
 	new File(tmpOut1).delete
 	new File(tmpOut2).delete
 }
@@ -687,14 +679,16 @@ def indelRealignment(tmpFileBase: String, t0: Long, chrRegion: String, pwLog: Pr
 		"GenomeAnalysisTK.jar -T RealignerTargetCreator -nt " + config.getNumThreads() + " -R " + FilesManager.getRefFilePath(config) + 
 		" -I " + preprocess + indelStr + " -o " + targets + regionStr
 	LogWriter.dbgLog(pwLog, t0, "indel1\t" + cmdStr, config)
-	cmdStr.!!
+	var status = execCommand(cmdStr, "indel1", chrRegion, t0, config)
+	LogWriter.dbgLog(pwLog, t0, "\tExit status = " + status, config)
 	
 	// Indel realigner
 	cmdStr = javaTmp + " " + MemString + " " + config.getGATKopts + " -jar " + toolsFolder + 
 		"GenomeAnalysisTK.jar -T IndelRealigner -R " + FilesManager.getRefFilePath(config) + " -I " + preprocess + " -targetIntervals " + 
 		targets + indelStr + " -o " + tmpFile1 + regionStr
 	LogWriter.dbgLog(pwLog, t0, "indel2\t" + cmdStr, config)
-	cmdStr.!!
+	status = execCommand(cmdStr, "indel2", chrRegion, t0, config)
+	LogWriter.dbgLog(pwLog, t0, "\tExit status = " + status, config)
 	
 	// Hamid - Save output of indelRealignment
 	if (ProgramFlags.saveAllStages)
@@ -724,7 +718,8 @@ def baseQualityScoreRecalibration(tmpFileBase: String, t0: Long, chrRegion: Stri
 		"GenomeAnalysisTK.jar -T BaseRecalibrator -nct " + config.getNumThreads() + " -R " + FilesManager.getRefFilePath(config) + " -I " + 
 		tmpFile1 + " -o " + table + regionStr + " --disable_auto_index_creation_and_locking_when_reading_rods" + indelStr + " -knownSites " + knownSite
 	LogWriter.dbgLog(pwLog, t0, "base1\t" + cmdStr, config)
-	cmdStr.!!
+	var status = execCommand(cmdStr, "base1", chrRegion, t0, config)
+	LogWriter.dbgLog(pwLog, t0, "\tExit status = " + status, config)
 
 	if (ProgramFlags.doPrintReads)
 	{
@@ -733,7 +728,8 @@ def baseQualityScoreRecalibration(tmpFileBase: String, t0: Long, chrRegion: Stri
 			"GenomeAnalysisTK.jar -T PrintReads -R " + FilesManager.getRefFilePath(config) + " -I " + tmpFile1 + " -o " + tmpFile2 + 
 			" -BQSR " + table + regionStr 
 		LogWriter.dbgLog(pwLog, t0, "base2\t" + cmdStr, config)
-		cmdStr.!!
+		status = execCommand(cmdStr, "base2", chrRegion, t0, config)
+		LogWriter.dbgLog(pwLog, t0, "\tExit status = " + status, config)
 	
 		// Hamid - Save output of baseQualityScoreRecalibration
 		if (ProgramFlags.saveAllStages)
@@ -747,6 +743,29 @@ def baseQualityScoreRecalibration(tmpFileBase: String, t0: Long, chrRegion: Stri
 		new File(tmpFile1.replace(".bam", ".bai")).delete
 		new File(table).delete
 	}
+}
+
+def execCommand(cmdStr: String, folderID: String, chrRegion: String, t0: Long, config: Configuration) : Int = 
+{
+	val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem, config)
+	val outLog = hdfsManager.open(config.getOutputFolder + "stdout/" + folderID + "/" + chrRegion + ".out") 
+	outLog.println(cmdStr + "\n============================\n")
+
+	val errLog = hdfsManager.open(config.getOutputFolder + "stderr/" + folderID + "/" + chrRegion + ".err")
+	val logger = ProcessLogger(
+		(o: String) => {
+			outLog.println(o)
+			},
+		(e: String) => {
+			errLog.println(e)
+		} 
+	)
+	val status = cmdStr ! logger;
+	outLog.println("\n============================\nExit value = " + status + "\n============================")
+	outLog.close
+	errLog.close
+	
+	return status
 }
 
 def dnaVariantCalling(tmpFileBase: String, t0: Long, chrRegion: String, pwLog: PrintWriter, config: Configuration)
@@ -798,25 +817,10 @@ def dnaVariantCalling(tmpFileBase: String, t0: Long, chrRegion: String, pwLog: P
 		" -I " + tmpFile2 + bqsrStr + " --genotyping_mode DISCOVERY -o " + snps + standconf + standemit + 
 		regionStr + " --no_cmdline_in_header --disable_auto_index_creation_and_locking_when_reading_rods"
 	val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem, config)
-	val outLog = hdfsManager.open(config.getOutputFolder + "stdout/" + chrRegion + ".out") 
-	outLog.println(cmdStr)
+	
 	LogWriter.dbgLog(pwLog, t0, "haplo1\t" + cmdStr, config)
-	// Hamid
-	//cmdStr.!!
-	val errLog = hdfsManager.open(config.getOutputFolder + "stderr/" + chrRegion + ".err")
-	val logger = ProcessLogger(
-		(o: String) => {
-			outLog.println(o)
-			},
-		(e: String) => {
-			errLog.println(e)
-		} // do nothing
-	)
-	val status = cmdStr ! logger;
-	outLog.println("\n============================\nExit value = " + status + "\n============================")
-	outLog.close
-	errLog.close
-	//
+	val status = execCommand(cmdStr, "haplo", chrRegion, t0, config)
+	LogWriter.dbgLog(pwLog, t0, "\tExit status = " + status, config)
 	
 	// Delete temporary files
 	LogWriter.dbgLog(pwLog, t0, "haplo2\tDeleting files " + tmpFile2 + ", " + (tmpFileBase + ".bed") +
@@ -906,20 +910,13 @@ def main(args: Array[String])
 	val part = args(1).toInt
 	val part2Region = if (part == 2) args(2).toInt else 0
 	
-	println("THE VALUE IS " + new SparkContext(conf).master)
-	System.exit(1)
-	
-	// Have to find a way to progammatically know if running in local mode
-	/*if (config.getMode == "local")
+	val master = conf.get("spark.master")
+	if (master.contains("local"))
+		println("MODE == LOCAL")
+	else
 	{
-		conf.setMaster("local[" + config.getNumInstances() + "]")
-		conf.set("spark.cores.max", config.getNumInstances())
-	}
-	else*/
-	{
+		println("MODE = CLUSTER")
 		conf.set("spark.shuffle.blockTransferService", "nio") 
-		if (ProgramFlags.compressRDDs)
-			conf.set("spark.rdd.compress","true")
 		conf.set("spark.network.timeout", "12000")
 		if (part == 2)
 		{
@@ -929,6 +926,8 @@ def main(args: Array[String])
 			conf.set("spark.memory.storageFraction", "0.7")
 		}
 	}
+	if (ProgramFlags.compressRDDs)
+			conf.set("spark.rdd.compress","true")	
 	conf.set("spark.driver.maxResultSize", "4g")
    
 	val sc = new SparkContext(conf)
