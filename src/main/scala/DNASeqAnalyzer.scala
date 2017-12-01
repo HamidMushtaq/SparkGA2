@@ -55,6 +55,12 @@ import htsjdk.samtools._
 object DNASeqAnalyzer 
 {
 //////////////////////////////////////////////////////////////////////////////
+def getNodeName() : String =
+{
+	val IP = InetAddress.getLocalHost
+	IP.toString.split("/")(0)
+}
+
 def bwaRun (chunkName: String, config: Configuration) : Array[(Long, Int)] = 
 {
 	val inputFileIsUnzipped = !chunkName.contains(".gz")
@@ -93,6 +99,7 @@ def bwaRun (chunkName: String, config: Configuration) : Array[(Long, Int)] =
 		return null
 	}
 	
+	hdfsManager.create(config.getOutputFolder + "log/nodes/bwa/" + getNodeName() + "/" + x)
 	//////////////////////////////////////////////////////////////////////////
 	if (config.isStreaming)
 	{
@@ -575,6 +582,7 @@ def variantCall(chrRegion: String, config: Configuration) : Array[((Integer, Int
 	val tmpFileBase = config.getTmpFolder + chrRegion
 	var t0 = System.currentTimeMillis
 	val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem, config)
+	hdfsManager.create(config.getOutputFolder + "log/nodes/vc/" + getNodeName() + "/" + chrRegion)
 	
 	val pwLog = LogWriter.openWriter("vc/region_" + chrRegion, config)
 	
