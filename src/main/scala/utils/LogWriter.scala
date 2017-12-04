@@ -57,6 +57,8 @@ object LogWriter
 	def statusLog(key: String, t0: Long, message: String, config: Configuration) =
 	{
 		log("sparkLog.txt", t0, key + "\t" + message, config)
+		// Hamid
+		println("STATUSLOG: " + key + "\t" + message)
 	}
 
 	def openWriter(key: String, config: Configuration) : PrintWriter =

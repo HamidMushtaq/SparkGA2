@@ -1061,7 +1061,7 @@ def main(args: Array[String])
 				
 				count += nReads
 				if (nReads > elsPerRegion)
-					LogWriter.statusLog("chrPos: ", t0, s"($chrNum, $pos) -> $nReads = ", config)
+					LogWriter.statusLog("chrPos: ", t0, s"chr=$chrNum, pos=$pos, region=${curRegion+1} -> $nReads, avg=$elsPerRegion", config)
 				if (count > elsPerRegion)
 				{
 					count = nReads
@@ -1093,7 +1093,9 @@ def main(args: Array[String])
 		chrToSamRecord1.setName("rdd_chrToSamRecord1_" + i)
 		chrToSamRecord1.persist(MEMORY_AND_DISK_SER)
 		val chrToSamRecord2 = chrToSamRecord1.mapValues(ab => Array(ab)).reduceByKey((a1, a2) => a1 ++ a2)
+		chrToSamRecord2.persist(MEMORY_AND_DISK_SER)
 		chrToSamRecord2.setName("rdd_chrToSamRecord2_" + i)
+		LogWriter.statusLog("chrToSamRecord2: ", t0, "Number of bam files to create = " + chrToSamRecord2.count, config)
 	
 		val rdd = chrToSamRecord2.foreach(x => buildRegion(x._1, i, x._2, bcConfig.value))		
 	}
@@ -1144,6 +1146,7 @@ def main(args: Array[String])
 	//////////////////////////////////////////////////////////////////////////
 	var et = (System.currentTimeMillis - t0) / 1000
 	LogWriter.statusLog("Execution time:", t0, et.toString() + "\tsecs", config)
+	sc.stop
 }
 //////////////////////////////////////////////////////////////////////////////
 } // End of Class definition

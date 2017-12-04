@@ -3,7 +3,7 @@ package utils
 // ProgramFlags.scala
 object ProgramFlags
 {
-	final val saveAllStages = true
+	final val saveAllStages = false
 	final val compressRDDs = true
 	final val useTmpDirForJava = false
 	final val rmDupsInBWA = false
