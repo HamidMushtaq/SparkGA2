@@ -3,7 +3,7 @@ package utils
 // ProgramFlags.scala
 object ProgramFlags
 {
-	final val saveAllStages = true
+	final val saveAllStages = false
 	final val compressRDDs = true
 	final val useTmpDirForJava = false
 	final val rmDupsInBWA = false
@@ -12,7 +12,7 @@ object ProgramFlags
 	// Downloading
 	final val downloadNeededFiles = false
 	// Compression and reading of HDFS files
-	final val compressionLevel = 1
+	final val compressionLevel = 4
 	final val unzipBWAInputDirectly = false
 	final val readLBInputDirectly = true
 	// Optional stages

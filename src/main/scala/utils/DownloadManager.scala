@@ -26,7 +26,7 @@ object DownloadManager
 	private def gunZipDownloadedFile(x: String, filePath: String, config: Configuration) : Long =
 	{
 		val fileName = FilesManager.getFileNameFromPath(filePath)
-		val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem)
+		val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem, config)
 		val fileSize = hdfsManager.getFileSize(filePath)
 		
 		LogWriter.dbgLog(x, 0, "#1\tfilePath = " + filePath + ", fileSize = " + fileSize, config)
@@ -52,7 +52,7 @@ object DownloadManager
 	private def fileToDownloadAlreadyExists(hdfsPath: String, config: Configuration) : Boolean =
 	{
 		val fileName = FilesManager.getFileNameFromPath(hdfsPath)
-		val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem)
+		val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem, config)
 		val fileSize = hdfsManager.getFileSize(hdfsPath)
 		val f = new File(config.getSfFolder + fileName)
 		
@@ -63,7 +63,7 @@ object DownloadManager
 	{
 		val refFolder = FilesManager.getDirFromPath(config.getRefPath())
 		val refFileName = FilesManager.getFileNameFromPath(config.getRefPath())
-		val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem)
+		val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem, config)
 		
 		if (!(new File(config.getSfFolder).exists))
 			new File(config.getSfFolder()).mkdirs()
@@ -88,7 +88,7 @@ object DownloadManager
 
 	def downloadVCFTools(config: Configuration)
 	{
-		val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem)
+		val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem, config)
 		
 		hdfsManager.downloadIfRequired("AddOrReplaceReadGroups.jar", config.getToolsFolder(), config.getSfFolder())
 		hdfsManager.downloadIfRequired("BuildBamIndex.jar", config.getToolsFolder(), config.getSfFolder())
@@ -101,7 +101,7 @@ object DownloadManager
 	{
 		val refFolder = FilesManager.getDirFromPath(config.getRefPath())
 		val refFileName = FilesManager.getFileNameFromPath(config.getRefPath())
-		val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem)
+		val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem, config)
 		
 		if (!(new File(config.getSfFolder).exists))
 			new File(config.getSfFolder()).mkdirs()
@@ -127,7 +127,7 @@ object DownloadManager
 	{
 		val snpFolder = FilesManager.getDirFromPath(config.getSnpPath)
 		val snpFileName = FilesManager.getFileNameFromPath(config.getSnpPath)
-		val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem)
+		val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem, config)
 		
 		if (!fileToDownloadAlreadyExists(config.getSnpPath, config))
 		{
@@ -141,16 +141,15 @@ object DownloadManager
 	{
 		val refFolder = FilesManager.getDirFromPath(config.getRefPath())
 		val refFileName = FilesManager.getFileNameFromPath(config.getRefPath())
-		val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem)
+		val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem, config)
 		
 		hdfsManager.downloadIfRequired(refFileName.replace(".fasta", ".dict"), refFolder, config.getSfFolder)
 	}
 
 	def downloadBinProgram(fileName: String, config: Configuration)
 	{	
-		val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem)
+		val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem, config)
 		
-		if (config.getMode != "local")
-			hdfsManager.downloadIfRequired(fileName, config.getToolsFolder(), config.getTmpFolder)
+		hdfsManager.downloadIfRequired(fileName, config.getToolsFolder(), config.getTmpFolder)
 	}
 }

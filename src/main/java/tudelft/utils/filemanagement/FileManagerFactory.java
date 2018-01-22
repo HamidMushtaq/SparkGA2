@@ -16,13 +16,14 @@
  */
 package tudelft.utils.filemanagement;
 
-import java.io.IOException;
+import tudelft.utils.*;
+import java.io.*;
 
 public class FileManagerFactory
 {
-	public static FileManager createInstance(String type) throws IOException
+	public static FileManager createInstance(String type, Configuration config) throws IOException
 	{
-		if (type.equals("gpfs"))
+		if (type.equals("gpfs") || config.getMode() == "local")
 			return new GPFSFileManager();
 		else
 			return new HDFSFileManager();

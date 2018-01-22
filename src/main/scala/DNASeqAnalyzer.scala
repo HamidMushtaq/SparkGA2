@@ -55,23 +55,28 @@ import htsjdk.samtools._
 object DNASeqAnalyzer 
 {
 //////////////////////////////////////////////////////////////////////////////
+def getNodeName() : String =
+{
+	val IP = InetAddress.getLocalHost
+	IP.toString.split("/")(0)
+}
+
 def bwaRun (chunkName: String, config: Configuration) : Array[(Long, Int)] = 
 {
 	val inputFileIsUnzipped = !chunkName.contains(".gz")
 	val x = chunkName.replace(".gz", "")
 	val gz = if (inputFileIsUnzipped) "" else ".gz"
 	var inputFileName = {
-		if ((config.getMode != "local") && !ProgramFlags.unzipBWAInputDirectly && !inputFileIsUnzipped) 
+		if (!ProgramFlags.unzipBWAInputDirectly && !inputFileIsUnzipped) 
 			config.getTmpFolder + x + gz 
 		else 
 			config.getInputFolder + x + gz 
 	}
 	val fqFileName = config.getTmpFolder + x
-	val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem)
+	val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem, config)
 	
 	var t0 = System.currentTimeMillis
 	
-	FilesManager.makeDirIfRequired(config.getOutputFolder + "log/bwa", config)
 	val pwLog = LogWriter.openWriter("bwa/" + x, config)
 	
 	if (config.getMode != "local")
@@ -94,6 +99,7 @@ def bwaRun (chunkName: String, config: Configuration) : Array[(Long, Int)] =
 		return null
 	}
 	
+	hdfsManager.create(config.getOutputFolder + "log/nodes/bwa/" + getNodeName() + "/" + x)
 	//////////////////////////////////////////////////////////////////////////
 	if (config.isStreaming)
 	{
@@ -125,28 +131,18 @@ def bwaRun (chunkName: String, config: Configuration) : Array[(Long, Int)] =
 		if (ProgramFlags.unzipBWAInputDirectly)
 		{
 			var inputFileBytes: Array[Byte] = null
-			if (config.getMode != "local")
-			{
-				inputFileBytes = hdfsManager.readBytes(inputFileName)
-				LogWriter.dbgLog(pwLog, t0, "0a\tSize of " + inputFileName + " = " + (inputFileBytes.size / (1024 * 1024)) + " MB.", config)
-			}
-			else
-			{
-				val s = FilesManager.readWholeFile(inputFileName, config)
-				inputFileBytes = s.getBytes
-			}
+			inputFileBytes = hdfsManager.readBytes(inputFileName)
+			LogWriter.dbgLog(pwLog, t0, "0a\tSize of " + inputFileName + " = " + (inputFileBytes.size / (1024 * 1024)) + " MB.", config)
 			val decompressedStr = new GzipDecompressor(inputFileBytes).decompress
 			new PrintWriter(fqFileName) {write(decompressedStr); close}
 		}
 		else
 		{
-			if (config.getMode != "local")
-				hdfsManager.download(x + ".gz", config.getInputFolder, config.getTmpFolder, false)
+			hdfsManager.download(x + ".gz", config.getInputFolder, config.getTmpFolder, false)
 			val unzipStr = "gunzip -c " + inputFileName
 			LogWriter.dbgLog(pwLog, t0, "0a\t" + unzipStr + ", Input file size = " + ((new File(inputFileName).length) / (1024 * 1024)) + " MB.", config)
 			unzipStr #> new java.io.File(fqFileName) !;
-			if (config.getMode != "local")
-				new File(inputFileName).delete
+			new File(inputFileName).delete
 		}
 	}
 	LogWriter.dbgLog(pwLog, t0, "0b\tFastq file size = " + ((new File(fqFileName).length) / (1024 * 1024)) + " MB", config)
@@ -238,11 +234,8 @@ def bwaRun (chunkName: String, config: Configuration) : Array[(Long, Int)] =
 	{
 		bfWriter(i).close
 	
-		if (config.getMode() != "local")
-		{
-			new File(config.getTmpFolder + "." + i + "_cmp-" + x + ".crc").delete
-			hdfsManager.upload(i + "_cmp-" + x, config.getTmpFolder, config.getOutputFolder + "bwaOut/" + i + "/")
-		}
+		new File(config.getTmpFolder + "." + i + "_cmp-" + x + ".crc").delete
+		hdfsManager.upload(i + "_cmp-" + x, config.getTmpFolder, config.getOutputFolder + "bwaOut/" + i + "/")
 	}
 	LogWriter.dbgLog(pwLog, t0, "3\t" + "Content uploaded to the HDFS", config)
 	pwLog.close
@@ -254,30 +247,21 @@ def getSamRecords(x: String, lbRegion: Int, chrPosMap: scala.collection.Map[Long
 {
 	val bfr = new BinaryFileReader
 	val ab = scala.collection.mutable.ArrayBuffer.empty[(Int, Array[Byte])]
-	val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem)
+	val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem, config)
 	
-	if (config.getMode != "local")
-		hdfsManager.create(config.getOutputFolder + "log/gsr/" + lbRegion + "/" + x)
-	else
-	{
-		FilesManager.makeDirIfRequired(config.getOutputFolder + "log/gsr", config)
-		FilesManager.makeDirIfRequired(config.getOutputFolder + "log/gsr/" + lbRegion, config)
-	}
+	hdfsManager.create(config.getOutputFolder + "log/gsr/" + lbRegion + "/" + x)
 			
 	val t0 = System.currentTimeMillis
 	LogWriter.dbgLog("gsr/" + lbRegion + "/" + x, t0, "1\tDownloading...", config)
-	if (config.getMode != "local")
-	{
-		if (ProgramFlags.readLBInputDirectly)
-			bfr.setSource(hdfsManager.readBytes(config.getOutputFolder + "bwaOut/" + lbRegion + "/" + x))
-		else
-		{
-			hdfsManager.download(x, config.getOutputFolder + "bwaOut/" + lbRegion + "/", config.getTmpFolder, false)
-			bfr.read(config.getTmpFolder + x)
-		}
-	}
+	
+	if (ProgramFlags.readLBInputDirectly)
+		bfr.setSource(hdfsManager.readBytes(config.getOutputFolder + "bwaOut/" + lbRegion + "/" + x))
 	else
+	{
+		hdfsManager.download(x, config.getOutputFolder + "bwaOut/" + lbRegion + "/", config.getTmpFolder, false)
 		bfr.read(config.getTmpFolder + x)
+	}
+
 	LogWriter.dbgLog("gsr/" + lbRegion + "/" + x, t0, "2\tCompleted reading input", config)
 
 	var r = bfr.readRecord
@@ -289,7 +273,7 @@ def getSamRecords(x: String, lbRegion: Int, chrPosMap: scala.collection.Map[Long
 		r = bfr.readRecord
 	}
 	bfr.close
-	if ((config.getMode == "local") || !ProgramFlags.readLBInputDirectly) 
+	if (!ProgramFlags.readLBInputDirectly) 
 		new File(config.getTmpFolder + x).delete
 	LogWriter.dbgLog("gsr/" + lbRegion + "/" + x, t0, "3\tDone. Total records = " + count, config)
 	
@@ -306,31 +290,23 @@ def getRegion(chrRegion: Integer, lbRegion: Integer, samRecordsZipped: Array[Arr
 	config: Configuration) : (Int, Array[SAMRecord]) =
 {
 	val writeInString = true
-	val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem)
+	val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem, config)
 	
 	var t0 = System.currentTimeMillis
 	
-	if (config.getMode != "local")
+	if (hdfsManager.exists(config.getOutputFolder + "log/getRegion/" + lbRegion + "/region_" + chrRegion))
 	{
-		if (hdfsManager.exists(config.getOutputFolder + "log/getRegion/" + lbRegion + "/region_" + chrRegion))
-		{
-			if (!hdfsManager.exists(config.getOutputFolder + "log/getRegion/fault/" + lbRegion + "/region_" + chrRegion))
-				hdfsManager.create(config.getOutputFolder + "log/getRegion/fault/" + lbRegion + "/region_" + chrRegion)
-			LogWriter.dbgLog("getRegion/" + lbRegion + "/region_" + chrRegion, t0, "1b\t!!! Restarted by Spark !!!", config)
-			LogWriter.errLog("getRegion:", t0, "Error encountered for " + lbRegion + "/region_" + chrRegion , config)
-		}
-		else
-			hdfsManager.create(config.getOutputFolder + "log/getRegion/" + lbRegion + "/region_" + chrRegion)
-
-		if (ProgramFlags.downloadNeededFiles)
-			DownloadManager.downloadDictFile(config)
+		if (!hdfsManager.exists(config.getOutputFolder + "log/getRegion/fault/" + lbRegion + "/region_" + chrRegion))
+			hdfsManager.create(config.getOutputFolder + "log/getRegion/fault/" + lbRegion + "/region_" + chrRegion)
+		LogWriter.dbgLog("getRegion/" + lbRegion + "/region_" + chrRegion, t0, "1b\t!!! Restarted by Spark !!!", config)
+		LogWriter.errLog("getRegion:", t0, "Error encountered for " + lbRegion + "/region_" + chrRegion , config)
 	}
 	else
-	{
-		FilesManager.makeDirIfRequired(config.getOutputFolder + "log/getRegion", config)
-		FilesManager.makeDirIfRequired(config.getOutputFolder + "log/getRegion/" + lbRegion, config)
-	}
-	
+		hdfsManager.create(config.getOutputFolder + "log/getRegion/" + lbRegion + "/region_" + chrRegion)
+
+	if (ProgramFlags.downloadNeededFiles)
+		DownloadManager.downloadDictFile(config)
+
 	var samRecordsSorted: Array[SAMRecord] = null 
 	if (writeInString)
 	{
@@ -473,15 +449,9 @@ def createBAMAndBEDFiles(chrRegion: Integer, lbRegion: Integer, samRecordsSorted
 {	
 	val tmpFileBase = config.getTmpFolder + lbRegion + "_" + chrRegion
 	val tmpOut1 = tmpFileBase + "-p1.bam"
-	val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem)
+	val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem, config)
 	
-	if (config.getMode != "local")
-		hdfsManager.create(config.getOutputFolder + "log/bam/" + lbRegion + "/region_" + chrRegion.toString)
-	else
-	{
-		FilesManager.makeDirIfRequired(config.getOutputFolder + "log/bam", config)
-		FilesManager.makeDirIfRequired(config.getOutputFolder + "log/bam/" + lbRegion, config)
-	}
+	hdfsManager.create(config.getOutputFolder + "log/bam/" + lbRegion + "/region_" + chrRegion.toString)
 	
 	var t0 = System.currentTimeMillis
 	
@@ -547,11 +517,8 @@ def createBAMAndBEDFiles(chrRegion: Integer, lbRegion: Integer, samRecordsSorted
 	
 	LogWriter.dbgLog("bam/" + lbRegion + "/region_" + chrRegion.toString(), t0, "4\tUploaded bam and bed files to the output.", config)
 	
-	if (config.getMode != "local")
-	{ 
-		new File(tmpOut1).delete
-		new File(tmpFileBase + ".bed").delete
-	}
+	new File(tmpOut1).delete
+	new File(tmpFileBase + ".bed").delete
 	
 	return (chrRegion.toString, samRecordsSorted.size)
 }
@@ -559,7 +526,7 @@ def createBAMAndBEDFiles(chrRegion: Integer, lbRegion: Integer, samRecordsSorted
 def makeRegionFile(tmpFileBase: String, r: ChromosomeRange, config: Configuration)
 {
 	val bedFile = tmpFileBase + ".bed"
-	val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem)
+	val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem, config)
 	
 	if (config.useExome())
 	{
@@ -568,11 +535,8 @@ def makeRegionFile(tmpFileBase: String, r: ChromosomeRange, config: Configuratio
 		
 		FilesManager.copyExomeBed(exomeBed, config)
 		
-		if (config.getMode != "local")
-		{
-			val file = new File(toolsFolder + "bedtools") 
-			file.setExecutable(true)
-		}
+		val file = new File(toolsFolder + "bedtools") 
+		file.setExecutable(true)
 		
 		 // write a bed file with the region!
 		val bed = new File(exomeBed + "_tmp.bed")
@@ -617,25 +581,23 @@ def variantCall(chrRegion: String, config: Configuration) : Array[((Integer, Int
 {
 	val tmpFileBase = config.getTmpFolder + chrRegion
 	var t0 = System.currentTimeMillis
-	val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem)
+	val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem, config)
+	hdfsManager.create(config.getOutputFolder + "log/nodes/vc/" + getNodeName() + "/" + chrRegion)
 	
-	FilesManager.makeDirIfRequired(config.getOutputFolder + "log/vc", config)
 	val pwLog = LogWriter.openWriter("vc/region_" + chrRegion, config)
-	if (config.getMode != "local")
-	{
-		if (!(new File(config.getTmpFolder).exists))
-			new File(config.getTmpFolder).mkdirs()
-		
-		hdfsManager.download(chrRegion + "-p1.bam", config.getOutputFolder + "bam/", config.getTmpFolder, false)
-		hdfsManager.download(chrRegion + ".bed", config.getOutputFolder + "bed/", config.getTmpFolder, false)
-		LogWriter.dbgLog(pwLog, t0, "1\tDownloaded bam and bed files to the local directory!", config)
-	}
+	
+	if (!(new File(config.getTmpFolder).exists))
+		new File(config.getTmpFolder).mkdirs()
+	
+	hdfsManager.download(chrRegion + "-p1.bam", config.getOutputFolder + "bam/", config.getTmpFolder, false)
+	hdfsManager.download(chrRegion + ".bed", config.getOutputFolder + "bed/", config.getTmpFolder, false)
+	LogWriter.dbgLog(pwLog, t0, "1\tDownloaded bam and bed files to the local directory!", config)
 	
 	val f = new File(tmpFileBase + ".bed");
 	if (!(f.exists() && !f.isDirectory())) 
 		LogWriter.dbgLog(pwLog, t0, "#-\tbed file does not exist in the tmp directory!!", config)
 	
-	if ((config.getMode != "local") && ProgramFlags.downloadNeededFiles)
+	if (ProgramFlags.downloadNeededFiles)
 	{
 		LogWriter.dbgLog(pwLog, t0, "download\tDownloading vcf tools", config)
 		DownloadManager.downloadVCFTools(config)
@@ -645,7 +607,7 @@ def variantCall(chrRegion: String, config: Configuration) : Array[((Integer, Int
 	//try 
 	{
 		picardPreprocess(tmpFileBase, pwLog, config)
-		if ((config.getMode != "local") && ProgramFlags.downloadNeededFiles)
+		if (ProgramFlags.downloadNeededFiles)
 		{
 			LogWriter.dbgLog(pwLog, t0, "download\tDownloading ref files for variant calling", config)
 			DownloadManager.downloadVCFRefFiles("dlvcf/region_" + chrRegion, config)
@@ -685,34 +647,26 @@ def picardPreprocess(tmpFileBase: String, pwLog: PrintWriter, config: Configurat
 	
 	LogWriter.dbgLog(pwLog, t0, "picard\tPicard processing started", config)
 	
-	try
-	{
-		var cmdStr = "java " + MemString + " -jar " + toolsFolder + "CleanSam.jar INPUT=" + tmpOut1 + " OUTPUT=" + tmpOut2
-		cmdStr.!!
-		
-		val bamOut = tmpFileBase + ".bam"
-		val tmpMetrics = tmpFileBase + "-metrics.txt"
-		
-		cmdStr = "java " + MemString + " -jar " + toolsFolder + "MarkDuplicates.jar INPUT=" + tmpOut2 + " OUTPUT=" + bamOut +
-			" METRICS_FILE=" + tmpMetrics + MDtmpDir + " CREATE_INDEX=true";
-		cmdStr.!!
-		
-		// Hamid - Save output of picardPreprocessing
-		if (ProgramFlags.saveAllStages)
-			FilesManager.uploadFileToOutput(bamOut, "picardOutput", false, config)
-		
-		// Delete temporary files
-		LogWriter.dbgLog(pwLog, t0, "picard\tDeleting files " + tmpOut1 + ", " + tmpOut2 + ", and " + tmpMetrics, config)
-		new File(tmpMetrics).delete
-	}
-	catch 
-	{
-		case e: Exception => {
-			LogWriter.dbgLog(pwLog, t0, "exception\tAn exception occurred: " + ExceptionUtils.getStackTrace(e), config)
-			LogWriter.statusLog("Picard error:", t0, "Picard failed for " + chrRegion, config)
-		}
-	}
+	var cmdStr = "java " + MemString + " -jar " + toolsFolder + "CleanSam.jar INPUT=" + tmpOut1 + " OUTPUT=" + tmpOut2
+	var status = execCommand(cmdStr, "cleansam", chrRegion, t0, config)
+	LogWriter.dbgLog(pwLog, t0, "\tExit status = " + status, config)
 	
+	val bamOut = tmpFileBase + ".bam"
+	val tmpMetrics = tmpFileBase + "-metrics.txt"
+	
+	cmdStr = "java " + MemString + " -jar " + toolsFolder + "MarkDuplicates.jar INPUT=" + tmpOut2 + " OUTPUT=" + bamOut +
+		" METRICS_FILE=" + tmpMetrics + MDtmpDir + " CREATE_INDEX=true";
+	status = execCommand(cmdStr, "markdup", chrRegion, t0, config)
+	LogWriter.dbgLog(pwLog, t0, "\tExit status = " + status, config)
+	
+	// Hamid - Save output of picardPreprocessing
+	if (ProgramFlags.saveAllStages)
+		FilesManager.uploadFileToOutput(bamOut, "picardOutput", false, config)
+	
+	// Delete temporary files
+	LogWriter.dbgLog(pwLog, t0, "picard\tDeleting files " + tmpOut1 + ", " + tmpOut2 + ", and " + tmpMetrics, config)
+	new File(tmpMetrics).delete
+
 	new File(tmpOut1).delete
 	new File(tmpOut2).delete
 }
@@ -733,14 +687,16 @@ def indelRealignment(tmpFileBase: String, t0: Long, chrRegion: String, pwLog: Pr
 		"GenomeAnalysisTK.jar -T RealignerTargetCreator -nt " + config.getNumThreads() + " -R " + FilesManager.getRefFilePath(config) + 
 		" -I " + preprocess + indelStr + " -o " + targets + regionStr
 	LogWriter.dbgLog(pwLog, t0, "indel1\t" + cmdStr, config)
-	cmdStr.!!
+	var status = execCommand(cmdStr, "indel1", chrRegion, t0, config)
+	LogWriter.dbgLog(pwLog, t0, "\tExit status = " + status, config)
 	
 	// Indel realigner
 	cmdStr = javaTmp + " " + MemString + " " + config.getGATKopts + " -jar " + toolsFolder + 
 		"GenomeAnalysisTK.jar -T IndelRealigner -R " + FilesManager.getRefFilePath(config) + " -I " + preprocess + " -targetIntervals " + 
 		targets + indelStr + " -o " + tmpFile1 + regionStr
 	LogWriter.dbgLog(pwLog, t0, "indel2\t" + cmdStr, config)
-	cmdStr.!!
+	status = execCommand(cmdStr, "indel2", chrRegion, t0, config)
+	LogWriter.dbgLog(pwLog, t0, "\tExit status = " + status, config)
 	
 	// Hamid - Save output of indelRealignment
 	if (ProgramFlags.saveAllStages)
@@ -770,7 +726,8 @@ def baseQualityScoreRecalibration(tmpFileBase: String, t0: Long, chrRegion: Stri
 		"GenomeAnalysisTK.jar -T BaseRecalibrator -nct " + config.getNumThreads() + " -R " + FilesManager.getRefFilePath(config) + " -I " + 
 		tmpFile1 + " -o " + table + regionStr + " --disable_auto_index_creation_and_locking_when_reading_rods" + indelStr + " -knownSites " + knownSite
 	LogWriter.dbgLog(pwLog, t0, "base1\t" + cmdStr, config)
-	cmdStr.!!
+	var status = execCommand(cmdStr, "base1", chrRegion, t0, config)
+	LogWriter.dbgLog(pwLog, t0, "\tExit status = " + status, config)
 
 	if (ProgramFlags.doPrintReads)
 	{
@@ -779,7 +736,8 @@ def baseQualityScoreRecalibration(tmpFileBase: String, t0: Long, chrRegion: Stri
 			"GenomeAnalysisTK.jar -T PrintReads -R " + FilesManager.getRefFilePath(config) + " -I " + tmpFile1 + " -o " + tmpFile2 + 
 			" -BQSR " + table + regionStr 
 		LogWriter.dbgLog(pwLog, t0, "base2\t" + cmdStr, config)
-		cmdStr.!!
+		status = execCommand(cmdStr, "base2", chrRegion, t0, config)
+		LogWriter.dbgLog(pwLog, t0, "\tExit status = " + status, config)
 	
 		// Hamid - Save output of baseQualityScoreRecalibration
 		if (ProgramFlags.saveAllStages)
@@ -793,6 +751,29 @@ def baseQualityScoreRecalibration(tmpFileBase: String, t0: Long, chrRegion: Stri
 		new File(tmpFile1.replace(".bam", ".bai")).delete
 		new File(table).delete
 	}
+}
+
+def execCommand(cmdStr: String, folderID: String, chrRegion: String, t0: Long, config: Configuration) : Int = 
+{
+	val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem, config)
+	val outLog = hdfsManager.open(config.getOutputFolder + "stdout/" + folderID + "/" + chrRegion + ".out") 
+	outLog.println(cmdStr + "\n============================\n")
+
+	val errLog = hdfsManager.open(config.getOutputFolder + "stderr/" + folderID + "/" + chrRegion + ".err")
+	val logger = ProcessLogger(
+		(o: String) => {
+			outLog.println(o)
+			},
+		(e: String) => {
+			errLog.println(e)
+		} 
+	)
+	val status = cmdStr ! logger;
+	outLog.println("\n============================\nExit value = " + status + "\n============================")
+	outLog.close
+	errLog.close
+	
+	return status
 }
 
 def dnaVariantCalling(tmpFileBase: String, t0: Long, chrRegion: String, pwLog: PrintWriter, config: Configuration)
@@ -843,26 +824,11 @@ def dnaVariantCalling(tmpFileBase: String, t0: Long, chrRegion: String, pwLog: P
 		" -R " + FilesManager.getRefFilePath(config) + 
 		" -I " + tmpFile2 + bqsrStr + " --genotyping_mode DISCOVERY -o " + snps + standconf + standemit + 
 		regionStr + " --no_cmdline_in_header --disable_auto_index_creation_and_locking_when_reading_rods"
-	val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem)
-	val outLog = hdfsManager.open(config.getOutputFolder + "stdout/" + chrRegion + ".out") 
-	outLog.println(cmdStr)
+	val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem, config)
+	
 	LogWriter.dbgLog(pwLog, t0, "haplo1\t" + cmdStr, config)
-	// Hamid
-	//cmdStr.!!
-	val errLog = hdfsManager.open(config.getOutputFolder + "stderr/" + chrRegion + ".err")
-	val logger = ProcessLogger(
-		(o: String) => {
-			outLog.println(o)
-			},
-		(e: String) => {
-			errLog.println(e)
-		} // do nothing
-	)
-	val status = cmdStr ! logger;
-	outLog.println("\n============================\nExit value = " + status + "\n============================")
-	outLog.close
-	errLog.close
-	//
+	val status = execCommand(cmdStr, "haplo", chrRegion, t0, config)
+	LogWriter.dbgLog(pwLog, t0, "\tExit status = " + status, config)
 	
 	// Delete temporary files
 	LogWriter.dbgLog(pwLog, t0, "haplo2\tDeleting files " + tmpFile2 + ", " + (tmpFileBase + ".bed") +
@@ -882,18 +848,14 @@ def getVCF(chrRegion: String, config: Configuration) : Array[((Integer, Integer)
 	
 	if (!Files.exists(Paths.get(fileName)))
 	{
-		if (config.getMode != "local") // For the optional Part 4 only, where the vcf file is not already in the tmp dir
-		{
-			val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem)
-			hdfsManager.download(chrRegion + ".vcf", config.getOutputFolder + "vcOut/", config.getTmpFolder, false)
-			// Hamid: Write the processor info ///////////////////////////////
-			val procInfo = FilesManager.readWholeLocalFile("/proc/cpuinfo")
-			hdfsManager.create(config.getOutputFolder + "log/procInfo/" + chrRegion)
-			LogWriter.dbgLog("procInfo/" + chrRegion, 0, "Information about the processor:\n" + procInfo, config)	
-			//////////////////////////////////////////////////////////////////
-		}
-		else
-			return a.toArray
+		// For the optional Part 4 only, where the vcf file is not already in the tmp dir		
+		val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem, config)
+		hdfsManager.download(chrRegion + ".vcf", config.getOutputFolder + "vcOut/", config.getTmpFolder, false)
+		// Hamid: Write the processor info ///////////////////////////////
+		val procInfo = FilesManager.readWholeLocalFile("/proc/cpuinfo")
+		hdfsManager.create(config.getOutputFolder + "log/procInfo/" + chrRegion)
+		LogWriter.dbgLog("procInfo/" + chrRegion, 0, "Information about the processor:\n" + procInfo, config)	
+		//////////////////////////////////////////////////////////////////
 	}
 	
 	for (line <- Source.fromFile(fileName).getLines()) 
@@ -914,13 +876,10 @@ def getVCF(chrRegion: String, config: Configuration) : Array[((Integer, Integer)
 			commentPos = commentPos + 1
 		}
 	}
-	
-	if (config.getMode != "local")
-	{
-		new File(config.getTmpFolder + "." + chrRegion + ".vcf.crc").delete
-		FilesManager.uploadFileToOutput(config.getTmpFolder + chrRegion + ".vcf", "vcOut", true, config)
-	}
 		
+	new File(config.getTmpFolder + "." + chrRegion + ".vcf.crc").delete
+	FilesManager.uploadFileToOutput(config.getTmpFolder + chrRegion + ".vcf", "vcOut", true, config)
+	
 	// Delete temporary file
 	if (Files.exists(Paths.get(fileName + ".idx")))
 		new File(fileName + ".idx").delete
@@ -949,7 +908,7 @@ def readRegionsMap(regionsMap: scala.collection.mutable.HashMap[Long, Int], conf
 
 def getBamFileSize(fileID: String, config: Configuration) : Long =
 {
-	val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem)
+	val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem, config)
 	return hdfsManager.getFileSize(config.getOutputFolder + "bam/" + fileID + "-p1.bam")
 }
 
@@ -959,17 +918,13 @@ def main(args: Array[String])
 	val part = args(1).toInt
 	val part2Region = if (part == 2) args(2).toInt else 0
 	
-	// Have to find a way to progammatically know if running in local mode
-	/*if (config.getMode == "local")
+	val master = conf.get("spark.master")
+	if (master.contains("local"))
+		println("MODE == LOCAL")
+	else
 	{
-		conf.setMaster("local[" + config.getNumInstances() + "]")
-		conf.set("spark.cores.max", config.getNumInstances())
-	}
-	else*/
-	{
+		println("MODE = CLUSTER")
 		conf.set("spark.shuffle.blockTransferService", "nio") 
-		if (ProgramFlags.compressRDDs)
-			conf.set("spark.rdd.compress","true")
 		conf.set("spark.network.timeout", "12000")
 		if (part == 2)
 		{
@@ -979,13 +934,15 @@ def main(args: Array[String])
 			conf.set("spark.memory.storageFraction", "0.7")
 		}
 	}
+	if (ProgramFlags.compressRDDs)
+			conf.set("spark.rdd.compress","true")	
 	conf.set("spark.driver.maxResultSize", "4g")
    
 	val sc = new SparkContext(conf)
 	val config = new Configuration()
 	config.initialize(args(0), sc.deployMode, args(1))
 	val bcConfig = sc.broadcast(config)
-	val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem)
+	val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem, config)
 	
 	// Comment these two lines if you want to see more verbose messages from Spark
 	//Logger.getLogger("org").setLevel(Level.OFF);
@@ -993,16 +950,11 @@ def main(args: Array[String])
 	
 	config.print() 
 	
-	if (config.getMode != "local")
-	{
-		if (!hdfsManager.exists("sparkLog.txt"))
-			hdfsManager.create("sparkLog.txt")
-		if (!hdfsManager.exists("errorLog.txt"))
-			hdfsManager.create("errorLog.txt")
-	}
-	else
-		FilesManager.makeDirIfRequired(config.getOutputFolder + "log", config)
-	
+	if (!hdfsManager.exists("sparkLog.txt"))
+		hdfsManager.create("sparkLog.txt")
+	if (!hdfsManager.exists("errorLog.txt"))
+		hdfsManager.create("errorLog.txt")
+
 	var t0 = System.currentTimeMillis
 	val numOfRegions = config.getNumRegions.toInt
 	// Spark Listener
@@ -1109,7 +1061,7 @@ def main(args: Array[String])
 				
 				count += nReads
 				if (nReads > elsPerRegion)
-					LogWriter.statusLog("chrPos: ", t0, s"($chrNum, $pos) -> $nReads = ", config)
+					LogWriter.statusLog("chrPos: ", t0, s"chr=$chrNum, pos=$pos, region=${curRegion+1} -> $nReads, avg=$elsPerRegion", config)
 				if (count > elsPerRegion)
 				{
 					count = nReads
@@ -1134,18 +1086,16 @@ def main(args: Array[String])
 		val bcChrPosMap = sc.broadcast(regionsMap)
 		val i = part2Region
 		
-		val inputFileNames = FilesManager.getInputFileNames({
-			if (config.getMode != "local") 
-				config.getOutputFolder + "bwaOut/" + i 
-			else 
-				config.getTmpFolder}, config)
+		val inputFileNames = FilesManager.getInputFileNames(config.getOutputFolder + "bwaOut/" + i, config)
 		val inputData = sc.parallelize(inputFileNames, inputFileNames.size)
 		// RDD[(Int, Array[Byte])]
 		val chrToSamRecord1 = inputData.flatMap(x => getSamRecords(x, i, bcChrPosMap.value, bcConfig.value))
 		chrToSamRecord1.setName("rdd_chrToSamRecord1_" + i)
 		chrToSamRecord1.persist(MEMORY_AND_DISK_SER)
 		val chrToSamRecord2 = chrToSamRecord1.mapValues(ab => Array(ab)).reduceByKey((a1, a2) => a1 ++ a2)
+		chrToSamRecord2.persist(MEMORY_AND_DISK_SER)
 		chrToSamRecord2.setName("rdd_chrToSamRecord2_" + i)
+		LogWriter.statusLog("chrToSamRecord2: ", t0, "Number of bam files to create = " + chrToSamRecord2.count, config)
 	
 		val rdd = chrToSamRecord2.foreach(x => buildRegion(x._1, i, x._2, bcConfig.value))		
 	}
@@ -1158,10 +1108,7 @@ def main(args: Array[String])
 		//
 		
 		var inputFileNames: Array[String] = null
-		if (config.getMode != "local") 
-			inputFileNames = FilesManager.getInputFileNames(config.getOutputFolder + "bed/", config).map(x => x.replace(".bed", ""))
-		else 
-			inputFileNames = FilesManager.getInputFileNames(config.getTmpFolder, config).filter(x => x.contains(".bed")).map(x => x.replace(".bed", ""))
+		inputFileNames = FilesManager.getInputFileNames(config.getOutputFolder + "bed/", config).map(x => x.replace(".bed", ""))
 		
 		val inputData1 = sc.parallelize(inputFileNames, inputFileNames.size)
 		val inputData1BySize = inputData1.map(x => (getBamFileSize(x, bcConfig.value), x))
@@ -1186,10 +1133,7 @@ def main(args: Array[String])
 		//
 		
 		var inputFileNames: Array[String] = null
-		if (config.getMode != "local") 
-			inputFileNames = FilesManager.getInputFileNames(config.getOutputFolder + "vcOut/", config).map(x => x.replace(".vcf", ""))
-		else 
-			inputFileNames = FilesManager.getInputFileNames(config.getTmpFolder, config).filter(x => x.contains(".vcf")).map(x => x.replace(".vcf", ""))
+		inputFileNames = FilesManager.getInputFileNames(config.getOutputFolder + "vcOut/", config).map(x => x.replace(".vcf", ""))
 		val inputData = sc.parallelize(inputFileNames, inputFileNames.size)
 		val vcf = inputData.flatMap(x => getVCF(x, bcConfig.value))
 		//vcf.distinct.sortByKey().map(_._2).coalesce(1, false).saveAsTextFile(config.getOutputFolder + "combinedVCF")
@@ -1202,6 +1146,7 @@ def main(args: Array[String])
 	//////////////////////////////////////////////////////////////////////////
 	var et = (System.currentTimeMillis - t0) / 1000
 	LogWriter.statusLog("Execution time:", t0, et.toString() + "\tsecs", config)
+	sc.stop
 }
 //////////////////////////////////////////////////////////////////////////////
 } // End of Class definition
