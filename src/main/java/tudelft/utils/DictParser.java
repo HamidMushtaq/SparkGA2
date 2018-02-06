@@ -67,6 +67,7 @@ public class DictParser
 	
 	void setChrRegions(int regions)
 	{
+		int numOfBins = int(chrLenSum / 1e6); 
 		int N = chrLenArray.size();
 		chrRegionArray = new int[N];
 		int regionSize = (int)(chrLenSum / regions);

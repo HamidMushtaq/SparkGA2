@@ -164,9 +164,9 @@ public class Configuration implements Serializable
 		return dict;
 	}
 	
-	public int getChrRegion(int chr)
+	public int getChrRegion(int chr, int pos)
 	{
-		return chrRegionArray[chr];
+		return chrRegionArray[chr*1e6.toInt + pos/1e6.toInt];
 	}
 
 	public String getMode()
