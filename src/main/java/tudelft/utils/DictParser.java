@@ -31,6 +31,13 @@ public class DictParser
 	long chrLenSum;
 	// Length of each chromosome
 	ArrayList<Integer> chrLenArray;
+	//////////////////////////////////////////
+	// Starting pos of each chromosome
+	ArrayList<Integer> startChrArray;
+	// HashMap for bins
+	private HashMap<Integer, Integer> chrBinMap;
+	int binPosCounter;
+	//////////////////////////////////////////
 	// <Chromosome index, Array Index>
 	private HashMap<Integer, Integer> chrArrayIndexMap;
 	// <Chromosome's name, index>
@@ -113,6 +120,10 @@ public class DictParser
 			dict = new SAMSequenceDictionary();
 			line = getLine(stream);
 			chrLenArray = new ArrayList<Integer>();
+			/////////////////////////////////////////
+			startChrArray = new ArrayList<Integer>();
+			binPosCounter = 0;
+			/////////////////////////////////////////
 			int chrIndex = 0;
 			int arrayIndex = 0;
 			
@@ -134,6 +145,14 @@ public class DictParser
 						chrLenArray.add(seqLength);
 						chrLenSum += seqLength;
 						chrArrayIndexMap.put(chrIndex, arrayIndex++);
+						startChrArray[chrIndex] = binPosCounter;
+						
+						int numOfBins = int(seqLength / 1e6);
+						for(int i = 0; i < numOfBins; i++)
+						{
+							int index = chrIndex * 1e6 + i;
+							chrBinMap.put(index, binPosCounter++);
+						}
 					}
 				} 
 				catch(NumberFormatException ex) 
