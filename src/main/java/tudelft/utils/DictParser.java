@@ -114,6 +114,7 @@ public class DictParser
 			chrLenSum = 0;
 			chrNameMap = new HashMap();
 			chrArrayIndexMap = new HashMap();
+			chrBinMap = new HashMap();
 			while(line != null) 
 			{
 				// @SQ	SN:chrM	LN:16571
