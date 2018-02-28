@@ -132,6 +132,8 @@ public class DictParser
 						chrArrayIndexMap.put(chrIndex, arrayIndex++);
 						
 						int numOfBins = seqLength / (int)1e6;
+						if (numOfBins == 0)
+							numOfBins = 1;
 						for(int i = 0; i < numOfBins; i++)
 						{
 							int index = chrIndex * (int)1e6 + i;

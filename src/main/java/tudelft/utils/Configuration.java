@@ -180,7 +180,9 @@ public class Configuration implements Serializable
 		{
 			int bin = chrBinMap.get(index);
 			int region = bin / binsPerRegion;
-			return region;
+			int lastRegion = numRegionsForLB-1;
+			
+			return (region > lastRegion)? lastRegion : region;
 		}
 		catch(Exception e)
 		{
