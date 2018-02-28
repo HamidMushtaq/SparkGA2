@@ -172,13 +172,15 @@ public class Configuration implements Serializable
 		return dict;
 	}
 	
-	public int getChrRegion(int chr, int pos)
+	public int getChrRegion(int chr, long pos)
 	{
-		int index = chr * 1e6 + pos / 1e6;
+		int index = chr * (int)1e6 + (int)(pos / (int)1e6);
+		
 		try
 		{
-			int bin = chrBinMap[index];
+			int bin = chrBinMap.get(index);
 			int region = bin / binsPerRegion;
+			return region;
 		}
 		catch(Exception e)
 		{

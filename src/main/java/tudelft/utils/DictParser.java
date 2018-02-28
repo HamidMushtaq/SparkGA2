@@ -32,8 +32,6 @@ public class DictParser
 	// Length of each chromosome
 	ArrayList<Integer> chrLenArray;
 	//////////////////////////////////////////
-	// Starting pos of each chromosome
-	ArrayList<Integer> startChrArray;
 	// HashMap for bins
 	private HashMap<Integer, Integer> chrBinMap;
 	int binPosCounter;
@@ -79,7 +77,7 @@ public class DictParser
 	
 	public HashMap<Integer, Integer> getChrBinMap()
 	{
-		return chrBinMap();
+		return chrBinMap;
 	}
 	
 	public int[] getChrRegionArray()
@@ -108,7 +106,6 @@ public class DictParser
 			line = getLine(stream);
 			chrLenArray = new ArrayList<Integer>();
 			/////////////////////////////////////////
-			startChrArray = new ArrayList<Integer>();
 			binPosCounter = 0;
 			/////////////////////////////////////////
 			int chrIndex = 0;
@@ -132,12 +129,11 @@ public class DictParser
 						chrLenArray.add(seqLength);
 						chrLenSum += seqLength;
 						chrArrayIndexMap.put(chrIndex, arrayIndex++);
-						startChrArray[chrIndex] = binPosCounter;
 						
-						int numOfBins = int(seqLength / 1e6);
+						int numOfBins = seqLength / (int)1e6;
 						for(int i = 0; i < numOfBins; i++)
 						{
-							int index = chrIndex * 1e6 + i;
+							int index = chrIndex * (int)1e6 + i;
 							chrBinMap.put(index, binPosCounter++);
 						}
 					}
