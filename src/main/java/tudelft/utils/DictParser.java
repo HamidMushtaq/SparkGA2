@@ -71,28 +71,15 @@ public class DictParser
 			return null;
 		}
 	}
-	
-	void setChrRegions(int regions)
+
+	public int getTotalNumOfBins()
 	{
-		int numOfBins = int(chrLenSum / 1e6); 
-		int N = chrLenArray.size();
-		chrRegionArray = new int[N];
-		int regionSize = (int)(chrLenSum / regions);
-		int currRegion = 0;
-		int accSize = 0;
-		
-		for(int i = 0; i < N; i++)
-		{
-			chrRegionArray[i] = currRegion;
-			accSize += chrLenArray.get(i);
-			if (accSize > regionSize)
-			{
-				accSize = 0;
-				currRegion += 1;
-			}
-			if (currRegion >= regions)
-				currRegion = regions - 1;
-		}
+		return binPosCounter;
+	}
+	
+	public HashMap<Integer, Integer> getChrBinMap()
+	{
+		return chrBinMap();
 	}
 	
 	public int[] getChrRegionArray()

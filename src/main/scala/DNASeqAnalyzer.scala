@@ -225,7 +225,10 @@ def bwaRun (chunkName: String, config: Configuration) : Array[(Long, Int)] =
 		{
 			val chrIndex = (arr(i)._1 / ProgramFlags.SF).toInt
 			val chrArrayIndex = config.getChrArrayIndex(chrIndex)
-			val region = config.getChrRegion(chrArrayIndex, arr(i)._1 % ProgramFlags.SF)
+			val chrPos = arr(i)._1 % ProgramFlags.SF
+			val region = config.getChrRegion(chrArrayIndex, chrPos)
+			if (region == -1)
+				LogWriter.dbgLog(pwLog, t0, "ERROR\t" + "getChrRegion error for " + chrIndex + ", " + chrPos, config)
 			bfWriter(region).writeRecord(arr(i))
 			retArr(i) = (arr(i)._1, arr(i)._2)
 		}

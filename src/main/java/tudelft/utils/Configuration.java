@@ -45,7 +45,8 @@ public class Configuration implements Serializable
 	private String numThreads;
 	private String ignoreList;
 	private String numRegions;
-	private String numRegionsForLB;
+	private int numRegionsForLB;
+	private int binsPerRegion;
 	private SAMSequenceDictionary dict;
 	private String scc;
 	private String sec;
@@ -58,6 +59,7 @@ public class Configuration implements Serializable
 	private HashMap<String, Integer> chrNameMap;
 	private HashSet<String> ignoreListSet;
 	private HashMap<Integer, Integer> chrArrayIndexMap;
+	private HashMap<Integer, Integer> chrBinMap;
 	
 	public void initialize(String configFilePath, String deployMode, String part)
 	{	
@@ -99,9 +101,12 @@ public class Configuration implements Serializable
 			//////////////////////////////////////////////////////////////////
 			numRegions = document.getElementsByTagName("numRegions").item(0).getTextContent();
 			if (document.getElementsByTagName("numRegionsForLB").item(0) == null)
-				numRegionsForLB = "1";
+				numRegionsForLB = 1;
 			else
-				numRegionsForLB = document.getElementsByTagName("numRegionsForLB").item(0).getTextContent();
+			{
+				String numRegionsForLBString = document.getElementsByTagName("numRegionsForLB").item(0).getTextContent();
+				numRegionsForLB = Integer.parseInt(numRegionsForLBString);
+			}
 			
 			if (Integer.parseInt(part) > 3)
 				part = "3";
@@ -129,10 +134,13 @@ public class Configuration implements Serializable
 				dict = dictParser.parse(getFileNameFromPath(refPath).replace(".fasta", ".dict"));
 			}
 			System.out.println("\n1.Hash code of dict = " + dict.hashCode() + "\n");
-			dictParser.setChrRegions(Integer.parseInt(numRegionsForLB));			
 			chrRegionArray = dictParser.getChrRegionArray();
 			chrNameMap = dictParser.getChrNameMap();
 			chrArrayIndexMap = dictParser.getChrArrayIndexMap();
+			// Added on 28th Feb 2018 ////////////////////////////////////////
+			binsPerRegion = dictParser.getTotalNumOfBins() / numRegionsForLB;
+			chrBinMap = dictParser.getChrBinMap();
+			//////////////////////////////////////////////////////////////////
 		}
 		catch(Exception e)
 		{
@@ -166,9 +174,18 @@ public class Configuration implements Serializable
 	
 	public int getChrRegion(int chr, int pos)
 	{
-		return chrRegionArray[chr*1e6.toInt + pos/1e6.toInt];
+		int index = chr * 1e6 + pos / 1e6;
+		try
+		{
+			int bin = chrBinMap[index];
+			int region = bin / binsPerRegion;
+		}
+		catch(Exception e)
+		{
+			return -1;
+		}
 	} 
-
+	
 	public String getMode()
 	{
 		return mode;
@@ -278,7 +295,7 @@ public class Configuration implements Serializable
 		return numRegions;
 	}
 	
-	public String getNumRegionsForLB()
+	public int getNumRegionsForLB()
 	{
 		return numRegionsForLB;
 	}
