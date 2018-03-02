@@ -314,6 +314,11 @@ def getRegion(chrRegion: Integer, lbRegion: Integer, samRecordsZipped: Array[Arr
 
 	if (ProgramFlags.downloadNeededFiles)
 		DownloadManager.downloadDictFile(config)
+		
+	// Sorting
+	implicit val samRecordOrdering = new Ordering[SAMRecord] {
+		override def compare(a: SAMRecord, b: SAMRecord) = compareSAMRecords(a,b)
+	}
 
 	var samRecordsSorted: Array[SAMRecord] = null 
 	if (writeInString)
@@ -327,7 +332,7 @@ def getRegion(chrRegion: Integer, lbRegion: Integer, samRecordsZipped: Array[Arr
 		val badLines = new Array[Int](nThreads)
 		val elsPerThread = samRecordsZipped.size / nThreads
 		
-		LogWriter.dbgLog("getRegion/" + lbRegion + "/region_" + chrRegion, t0, "1a\tCreating key value pairs, elsPerThreads = " + 
+		LogWriter.dbgLog("getRegion/" + lbRegion + "/region_" + chrRegion, t0, "[1a]\tCreating key value pairs, elsPerThreads = " + 
 			elsPerThread + ", total elements = " + samRecordsZipped.size, config)
 		
 		for(thread <- 0 until nThreads)
@@ -375,7 +380,7 @@ def getRegion(chrRegion: Integer, lbRegion: Integer, samRecordsZipped: Array[Arr
 							{
 								srecs(thread).synchronized
 								{
-									LogWriter.dbgLog("getRegion/" + lbRegion + "/region_" + chrRegion, t0, "1b\t" + printCounter + "." + count + 
+									LogWriter.dbgLog("getRegion/" + lbRegion + "/region_" + chrRegion, t0, "[1b]\t" + printCounter + "." + count + 
 										"recs processed!, sb.size = " + sb.size, config)
 								}
 							}
@@ -403,8 +408,9 @@ def getRegion(chrRegion: Integer, lbRegion: Integer, samRecordsZipped: Array[Arr
 		
 		for(thread <- 0 until nThreads)
 			threadArray(thread).join
+		// Hamid: 1st March 2018
 		//////////////////////////////////////////////////////////////////////	
-		var srecsCombined = srecs(0)
+		/*var srecsCombined = srecs(0)
 		var totalCountCombined = totalCount(0)
 		var badLinesCombined = badLines(0)
 		if (nThreads > 1)
@@ -417,12 +423,49 @@ def getRegion(chrRegion: Integer, lbRegion: Integer, samRecordsZipped: Array[Arr
 			}
 		}
 		samRecordsSorted = srecsCombined.toArray
-		LogWriter.dbgLog("getRegion/" + lbRegion + "/region_" + chrRegion, t0, "2\tSorting " + samRecordsSorted.size + " reads. Number of records = " + 
+		*/
+		//////////////////////////////////////////////////////////////////////
+		samRecordsSorted = {
+			if (nThreads == 1) 
+				srecs(0).toArray 
+			else 
+			{
+				var arraySize = 0
+				for(i <- 0 until nThreads)
+					arraySize += srecs(i).size
+				new Array[SAMRecord](arraySize)
+			}
+		}
+		
+		var totalCountCombined = 0
+		var badLinesCombined = 0
+		if (nThreads > 1)
+		{
+			var index = 0
+			for(i <- 0 until nThreads)
+			{
+				val arr = srecs(i)
+				for(j <- 0 until arr.size)
+				{
+					samRecordsSorted(index) = arr(j)
+					index += 1
+				}
+				totalCountCombined += totalCount(i)
+				badLinesCombined += badLines(i)
+			}
+		}
+		else
+		{
+			totalCountCombined = totalCount(0)
+			badLinesCombined = badLines(0)
+		}
+		//////////////////////////////////////////////////////////////////////
+		LogWriter.dbgLog("getRegion/" + lbRegion + "/region_" + chrRegion, t0, "[2]\tSorting " + samRecordsSorted.size + " reads. Number of records = " + 
 			totalCountCombined + ". Number of bad lines = " + badLinesCombined, config)
 	}
 	else
 	{
-		LogWriter.dbgLog("getRegion/" + lbRegion + "/region_" + chrRegion, t0, "1a\tCreating key value pairs", config)
+		LogWriter.dbgLog("getRegion/" + lbRegion + "/region_" + chrRegion, t0, "<1a>\tCreating key value pairs", config)
 		val fileName = config.getTmpFolder + lbRegion + "_" + chrRegion + ".bin"
 		val writer = new BufferedWriter(new FileWriter(fileName))
 		writer.write(FilesManager.readDictFile(config))
@@ -433,21 +476,25 @@ def getRegion(chrRegion: Integer, lbRegion: Integer, samRecordsZipped: Array[Arr
 			count += 1
 		}
 		writer.close
-		LogWriter.dbgLog("getRegion/" + lbRegion + "/region_" + chrRegion, t0, "1b\tNumber of records = " + count, config)
+		LogWriter.dbgLog("getRegion/" + lbRegion + "/region_" + chrRegion, t0, "<1b>\tNumber of records = " + count, config)
 		val bwaSamRecs = new BWASamRecs(fileName, chrRegion, config)
 		val badLines = bwaSamRecs.parseSam
 		samRecordsSorted = bwaSamRecs.getArray
 		bwaSamRecs.close
 		new File(fileName).delete
-		LogWriter.dbgLog("getRegion/" + lbRegion + "/region_" + chrRegion, t0, "2\tSorting " + samRecordsSorted.size + " reads. Number of bad lines = " + badLines, config)
+		LogWriter.dbgLog("getRegion/" + lbRegion + "/region_" + chrRegion, t0, "<2>\tSorting " + samRecordsSorted.size + " reads. Number of bad lines = " + badLines, config)
 	}
 	
-	// Sorting
-	implicit val samRecordOrdering = new Ordering[SAMRecord] {
-		override def compare(a: SAMRecord, b: SAMRecord) = compareSAMRecords(a,b)
-	}
+	if (samRecordsSorted == null)
+		LogWriter.dbgLog("getRegion/" + lbRegion + "/region_" + chrRegion, t0, "HAMID: samRecordsSorted == null!", config)
+	else
+		LogWriter.dbgLog("getRegion/" + lbRegion + "/region_" + chrRegion, t0, "HAMID: samRecordsSorted.size == " + samRecordsSorted.size, config)
+		
+	for (i <-0 until samRecordsSorted.size)
+		if (samRecordsSorted(i) == null)
+			LogWriter.dbgLog("getRegion/" + lbRegion + "/region_" + chrRegion, t0, "HAMID: Element " + i + " of samRecordsSorted == null", config)
+			
 	scala.util.Sorting.quickSort(samRecordsSorted)
-	//
 	
 	LogWriter.dbgLog("getRegion/" + lbRegion + "/region_" + chrRegion, t0, "3\t" + samRecordsSorted.size + " reads sorted!", config)
 	return (chrRegion, samRecordsSorted)
