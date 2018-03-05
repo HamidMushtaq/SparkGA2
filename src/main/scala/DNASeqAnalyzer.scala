@@ -1170,14 +1170,19 @@ def main(args: Array[String])
 		val inputData = inputData1BySize.sortByKey(false).map(_._2)
 		inputData.setName("rdd_inputData")
 		// RDD[((Integer, Integer), String)]
-		val vcf = inputData.flatMap(x => variantCall(x, bcConfig.value))
-		vcf.setName("rdd_vc")
-		//vcf.distinct.sortByKey().map(_._2).coalesce(1, false).saveAsTextFile(config.getOutputFolder + "combinedVCF")
-		val vcfCollected = vcf.distinct.sortByKey().map(_._2 + '\n').collect
-		val writer = hdfsManager.open(config.getOutputFolder + "sparkCombined.vcf")
-		for(e <- vcfCollected)
-			writer.write(e)
-		writer.close
+		if (ProgramFlags.combineVCFsSeparately)
+			inputData.foreach(x => variantCall(x, bcConfig.value))
+		else
+		{
+			val vcf = inputData.flatMap(x => variantCall(x, bcConfig.value))
+			vcf.setName("rdd_vc")
+			//vcf.distinct.sortByKey().map(_._2).coalesce(1, false).saveAsTextFile(config.getOutputFolder + "combinedVCF")
+			val vcfCollected = vcf.distinct.sortByKey().map(_._2 + '\n').collect
+			val writer = hdfsManager.open(config.getOutputFolder + "sparkCombined.vcf")
+			for(e <- vcfCollected)
+				writer.write(e)
+			writer.close
+		}
 	}
 	else // You get a combined vcf file with part3 anyway. So, this part is just for the case where for some reason, you want to combine the output vcf files again.
 	{
