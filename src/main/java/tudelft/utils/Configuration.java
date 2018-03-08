@@ -21,6 +21,7 @@ import java.io.File;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.DocumentBuilder;
 import org.w3c.dom.Document;
+import org.w3c.dom.NodeList;
 import java.io.Serializable;
 import java.lang.System;
 import java.util.*;
@@ -55,6 +56,9 @@ public class Configuration implements Serializable
 	private String execMemGB;
 	private String driverMemGB;
 	private String vcMemGB;
+	// Hamid: 6th March 2018
+	private String useGATK4;
+	//
 	private int[] chrRegionArray;
 	private HashMap<String, Integer> chrNameMap;
 	private HashSet<String> ignoreListSet;
@@ -118,6 +122,9 @@ public class Configuration implements Serializable
 			scc	= document.getElementsByTagName("standCC").item(0).getTextContent();
 			sec	= document.getElementsByTagName("standEC").item(0).getTextContent();
 			useKnownIndels = document.getElementsByTagName("useKnownIndels").item(0).getTextContent();
+			// Hamid: 6th March 2018
+			useGATK4 = emptyIfTagDoesntExist(document, "useGATK4");
+			//
 	
 			startTime = System.currentTimeMillis();
 			
@@ -147,6 +154,16 @@ public class Configuration implements Serializable
 			e.printStackTrace();
 			System.exit(1);
 		}
+	}
+	
+	// Hamid: 6th March 2018
+	private String emptyIfTagDoesntExist(Document document, String tag)
+	{
+		NodeList nl = document.getElementsByTagName(tag);
+		if (nl.getLength() > 0)
+			return nl.item(0).getTextContent();
+		else 
+			return "";
 	}
 	
 	private String correctFolderName(String s)
@@ -350,6 +367,12 @@ public class Configuration implements Serializable
 		Integer execValue = value; // - 1280; // 1280 mb less
 		
 		return "-Xmx" + execValue.toString() + "m";
+	}
+	
+	// Hamid: 6th March 2018
+	public boolean getUseGATK4()
+	{
+		return useGATK4.toLowerCase().equals("true");
 	}
 	
 	public String getHadoopInstall()

@@ -718,6 +718,20 @@ def picardPreprocess(tmpFileBase: String, pwLog: PrintWriter, config: Configurat
 	if (ProgramFlags.saveAllStages)
 		FilesManager.uploadFileToOutput(bamOut, "picardOutput", false, config)
 	
+	// Hamid dbg - 7th March 2018 ////////////////////////////////////////////
+	println("HAMID //////////////////////////////////////////////////////////")
+	val currentDirectory = new java.io.File(".").getCanonicalPath
+	println("CURRENT DIRECTORY IS " + currentDirectory)
+	val d = new File(currentDirectory)
+	val x = d.listFiles.filter(_.isFile).toList
+	x.foreach(println)
+	val p = "/home/sshuser/gatk-4.0.2.1/"
+	var file = new File(p + "gatk") 
+	file.setExecutable(true)
+	file = new File(p + "gatk-completion.sh") 
+	file.setExecutable(true)
+	println("////////////////////////////////////////////////////////////////")
+	//////////////////////////////////////////////////////////////////////////
 	// Delete temporary files
 	LogWriter.dbgLog(pwLog, t0, "picard\tDeleting files " + tmpOut1 + ", " + tmpOut2 + ", and " + tmpMetrics, config)
 	new File(tmpMetrics).delete
@@ -777,9 +791,24 @@ def baseQualityScoreRecalibration(tmpFileBase: String, t0: Long, chrRegion: Stri
 	val javaTmp = if (ProgramFlags.useTmpDirForJava) ("java -Djava.io.tmpdir=" + config.getTmpFolder) else  "java"
 	
 	// Base recalibrator
-	var cmdStr = javaTmp + " " + MemString + " -jar " + toolsFolder + 
-		"GenomeAnalysisTK.jar -T BaseRecalibrator -nct " + config.getNumThreads() + " -R " + FilesManager.getRefFilePath(config) + " -I " + 
-		tmpFile1 + " -o " + table + regionStr + " --disable_auto_index_creation_and_locking_when_reading_rods" + indelStr + " -knownSites " + knownSite
+	var cmdStr = {
+		if (config.getUseGATK4)
+		{
+			println("HAMID BQSR//////////////////////////////////////////////////////////")
+			val currentDirectory = new java.io.File(".").getCanonicalPath
+			println("BQSR CURRENT DIRECTORY IS " + currentDirectory)
+	
+			"gatk --java-options " + MemString + " BaseRecalibrator -R " + FilesManager.getRefFilePath(config) + " -I " + 
+				tmpFile1 + " -O " + table + regionStr + " -known-sites " + knownSite
+		}
+		else
+		{
+			javaTmp + " " + MemString + " -jar " + toolsFolder + 
+			"GenomeAnalysisTK.jar -T BaseRecalibrator -nct " + config.getNumThreads() + " -R " + FilesManager.getRefFilePath(config) + " -I " + 
+			tmpFile1 + " -o " + table + regionStr + " --disable_auto_index_creation_and_locking_when_reading_rods" + indelStr + " -knownSites " + knownSite
+		}
+	}
+	println("COMMANDSTR = " + cmdStr)
 	LogWriter.dbgLog(pwLog, t0, "base1\t" + cmdStr, config)
 	var status = execCommand(cmdStr, "base1", chrRegion, t0, config)
 	LogWriter.dbgLog(pwLog, t0, "\tExit status = " + status, config)
@@ -787,9 +816,19 @@ def baseQualityScoreRecalibration(tmpFileBase: String, t0: Long, chrRegion: Stri
 	if (ProgramFlags.doPrintReads)
 	{
 		// Print reads
-		cmdStr = javaTmp + " " + MemString + " -jar " + toolsFolder + 
-			"GenomeAnalysisTK.jar -T PrintReads -R " + FilesManager.getRefFilePath(config) + " -I " + tmpFile1 + " -o " + tmpFile2 + 
-			" -BQSR " + table + regionStr 
+		cmdStr = {
+			if (config.getUseGATK4)
+			{
+				"gatk --java-options " + MemString + " ApplyBQSR -R " + FilesManager.getRefFilePath(config) + " -I " + tmpFile1 + " -O " + tmpFile2 + 
+					" -bqsr " + table + regionStr
+			}
+			else
+			{
+				javaTmp + " " + MemString + " -jar " + toolsFolder + 
+				"GenomeAnalysisTK.jar -T PrintReads -R " + FilesManager.getRefFilePath(config) + " -I " + tmpFile1 + " -o " + tmpFile2 + 
+				" -BQSR " + table + regionStr
+			}
+		}
 		LogWriter.dbgLog(pwLog, t0, "base2\t" + cmdStr, config)
 		status = execCommand(cmdStr, "base2", chrRegion, t0, config)
 		LogWriter.dbgLog(pwLog, t0, "\tExit status = " + status, config)
@@ -874,11 +913,21 @@ def dnaVariantCalling(tmpFileBase: String, t0: Long, chrRegion: String, pwLog: P
 	LogWriter.dbgLog(pwLog, t0, "unzip2\t" + cmdStr, config)
 	
 	// Haplotype caller
-	cmdStr = javaTmp + " " + MemString + " " + config.getGATKopts + " -jar " + toolsFolder + 
-		gatkUnzippedFolder + "/" + gatkFolder + "/GenomeAnalysisTK.jar -T HaplotypeCaller -nct " + config.getNumThreads + 
-		" -R " + FilesManager.getRefFilePath(config) + 
-		" -I " + tmpFile2 + bqsrStr + " --genotyping_mode DISCOVERY -o " + snps + standconf + standemit + 
-		regionStr + " --no_cmdline_in_header --disable_auto_index_creation_and_locking_when_reading_rods"
+	cmdStr = {
+		if (config.getUseGATK4)
+		{
+			"gatk --java-options " + MemString + " HaplotypeCaller -R " + FilesManager.getRefFilePath(config) + 
+				" -I " + tmpFile2 + " -O " + snps + regionStr
+		}
+		else
+		{
+			javaTmp + " " + MemString + " " + config.getGATKopts + " -jar " + toolsFolder + 
+			gatkUnzippedFolder + "/" + gatkFolder + "/GenomeAnalysisTK.jar -T HaplotypeCaller -nct " + config.getNumThreads + 
+			" -R " + FilesManager.getRefFilePath(config) + 
+			" -I " + tmpFile2 + bqsrStr + " --genotyping_mode DISCOVERY -o " + snps + standconf + standemit + 
+			regionStr + " --no_cmdline_in_header --disable_auto_index_creation_and_locking_when_reading_rods"
+		}
+	}
 	val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem, config)
 	
 	LogWriter.dbgLog(pwLog, t0, "haplo1\t" + cmdStr, config)
