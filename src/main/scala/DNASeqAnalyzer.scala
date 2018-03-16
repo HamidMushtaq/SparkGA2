@@ -1195,7 +1195,8 @@ def main(args: Array[String])
 		// RDD[(Int, Array[Byte])]
 		val chrToSamRecord1 = inputData.flatMap(x => getSamRecords(x, i, bcChrPosMap.value, bcConfig.value))
 		chrToSamRecord1.setName("rdd_chrToSamRecord1_" + i)
-		chrToSamRecord1.persist(MEMORY_AND_DISK_SER)
+		// Hamid: 13th March
+		//chrToSamRecord1.persist(MEMORY_AND_DISK_SER)
 		val chrToSamRecord2 = chrToSamRecord1.mapValues(ab => Array(ab)).reduceByKey((a1, a2) => a1 ++ a2)
 		chrToSamRecord2.persist(MEMORY_AND_DISK_SER)
 		chrToSamRecord2.setName("rdd_chrToSamRecord2_" + i)
