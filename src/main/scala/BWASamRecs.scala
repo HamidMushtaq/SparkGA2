@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2017 Hamid Mushtaq
+ * Copyright (C) 2017-2018 TU Delft, The Netherlands
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -13,6 +13,9 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * Authors: Hamid Mushtaq
+ *
  */
 import java.io.File
 import java.io.InputStream
@@ -30,9 +33,9 @@ class BWASamRecs(filePath: String, chrRegion: Integer, config: Configuration)
 	var mReads = 0
 	val mFile = new File(filePath);
 	val is = new FileInputStream(mFile);
-    val validationStringency: ValidationStringency = ValidationStringency.LENIENT;
-    val mReader = new BufferedLineReader(is);
-    val samRecordFactory = new DefaultSAMRecordFactory();
+	val validationStringency: ValidationStringency = ValidationStringency.LENIENT;
+	val mReader = new BufferedLineReader(is);
+	val samRecordFactory = new DefaultSAMRecordFactory();
 	private var mCurrentLine: String = null
 	
 	def getArray() : Array[SAMRecord] = 
@@ -40,10 +43,10 @@ class BWASamRecs(filePath: String, chrRegion: Integer, config: Configuration)
 		return samRecs.toArray
 	}
 	
-    def writeSAMRecord(sam: SAMRecord) : Integer = 
+	def writeSAMRecord(sam: SAMRecord) : Integer = 
 	{
-        var count = 0
-        val read1Ref = sam.getReferenceIndex()
+		var count = 0
+		val read1Ref = sam.getReferenceIndex()
 		
 		if (!sam.getReadUnmappedFlag() && (read1Ref >= 0))
 		{
@@ -52,26 +55,26 @@ class BWASamRecs(filePath: String, chrRegion: Integer, config: Configuration)
 		}
 		
 		return count
-    }
+	}
 		
 	def advanceLine() : String = 
-    {
-        mCurrentLine = mReader.readLine()
-        return mCurrentLine;
-    }
+	{
+		mCurrentLine = mReader.readLine()
+		return mCurrentLine;
+	}
 	
 	def parseSam() : Integer =  
 	{
 		var mParentReader: SAMFileReader = null
-        val headerCodec = new SAMTextHeaderCodec();
-        headerCodec.setValidationStringency(validationStringency)
-        val mFileHeader = headerCodec.decode(mReader, mFile.toString)
-        val parser = new SAMLineParser(samRecordFactory, validationStringency, mFileHeader, null, mFile)
-        // now process each read...
-        var count = 0
+		val headerCodec = new SAMTextHeaderCodec();
+		headerCodec.setValidationStringency(validationStringency)
+		val mFileHeader = headerCodec.decode(mReader, mFile.toString)
+		val parser = new SAMLineParser(samRecordFactory, validationStringency, mFileHeader, null, mFile)
+		// now process each read...
+		var count = 0
 		var badLines = 0
 		
-        mCurrentLine = mReader.readLine()
+		mCurrentLine = mReader.readLine()
 		
 		if (mCurrentLine == null)
 			println("Hamid >> mCurrentLine is null!")
@@ -96,10 +99,10 @@ class BWASamRecs(filePath: String, chrRegion: Integer, config: Configuration)
 		}
         
 		mReads = count
-        println("SAMstream counts " + count + " records");
+		println("SAMstream counts " + count + " records");
 	
 		return badLines
-    }
+	}
 	
 	def getNumOfReads() : Integer =
 	{
