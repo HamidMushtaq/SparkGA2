@@ -21,6 +21,7 @@ import java.io.File;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.DocumentBuilder;
 import org.w3c.dom.Document;
+import org.w3c.dom.NodeList;
 import java.io.Serializable;
 import java.lang.System;
 import java.util.*;
@@ -45,7 +46,8 @@ public class Configuration implements Serializable
 	private String numThreads;
 	private String ignoreList;
 	private String numRegions;
-	private String numRegionsForLB;
+	private int numRegionsForLB;
+	private int binsPerRegion;
 	private SAMSequenceDictionary dict;
 	private String scc;
 	private String sec;
@@ -54,10 +56,14 @@ public class Configuration implements Serializable
 	private String execMemGB;
 	private String driverMemGB;
 	private String vcMemGB;
+	// Hamid: 6th March 2018
+	private String useGATK4;
+	//
 	private int[] chrRegionArray;
 	private HashMap<String, Integer> chrNameMap;
 	private HashSet<String> ignoreListSet;
 	private HashMap<Integer, Integer> chrArrayIndexMap;
+	private HashMap<Integer, Integer> chrBinMap;
 	
 	public void initialize(String configFilePath, String deployMode, String part)
 	{	
@@ -99,9 +105,12 @@ public class Configuration implements Serializable
 			//////////////////////////////////////////////////////////////////
 			numRegions = document.getElementsByTagName("numRegions").item(0).getTextContent();
 			if (document.getElementsByTagName("numRegionsForLB").item(0) == null)
-				numRegionsForLB = "1";
+				numRegionsForLB = 1;
 			else
-				numRegionsForLB = document.getElementsByTagName("numRegionsForLB").item(0).getTextContent();
+			{
+				String numRegionsForLBString = document.getElementsByTagName("numRegionsForLB").item(0).getTextContent();
+				numRegionsForLB = Integer.parseInt(numRegionsForLBString);
+			}
 			
 			if (Integer.parseInt(part) > 3)
 				part = "3";
@@ -113,6 +122,9 @@ public class Configuration implements Serializable
 			scc	= document.getElementsByTagName("standCC").item(0).getTextContent();
 			sec	= document.getElementsByTagName("standEC").item(0).getTextContent();
 			useKnownIndels = document.getElementsByTagName("useKnownIndels").item(0).getTextContent();
+			// Hamid: 6th March 2018
+			useGATK4 = emptyIfTagDoesntExist(document, "useGATK4");
+			//
 	
 			startTime = System.currentTimeMillis();
 			
@@ -129,16 +141,29 @@ public class Configuration implements Serializable
 				dict = dictParser.parse(getFileNameFromPath(refPath).replace(".fasta", ".dict"));
 			}
 			System.out.println("\n1.Hash code of dict = " + dict.hashCode() + "\n");
-			dictParser.setChrRegions(Integer.parseInt(numRegionsForLB));			
 			chrRegionArray = dictParser.getChrRegionArray();
 			chrNameMap = dictParser.getChrNameMap();
 			chrArrayIndexMap = dictParser.getChrArrayIndexMap();
+			// Added on 28th Feb 2018 ////////////////////////////////////////
+			binsPerRegion = dictParser.getTotalNumOfBins() / numRegionsForLB;
+			chrBinMap = dictParser.getChrBinMap();
+			//////////////////////////////////////////////////////////////////
 		}
 		catch(Exception e)
 		{
 			e.printStackTrace();
 			System.exit(1);
 		}
+	}
+	
+	// Hamid: 6th March 2018
+	private String emptyIfTagDoesntExist(Document document, String tag)
+	{
+		NodeList nl = document.getElementsByTagName(tag);
+		if (nl.getLength() > 0)
+			return nl.item(0).getTextContent();
+		else 
+			return "";
 	}
 	
 	private String correctFolderName(String s)
@@ -164,11 +189,24 @@ public class Configuration implements Serializable
 		return dict;
 	}
 	
-	public int getChrRegion(int chr)
+	public int getChrRegion(int chr, long pos)
 	{
-		return chrRegionArray[chr];
-	}
-
+		int index = chr * (int)1e6 + (int)(pos / (int)1e6);
+		
+		try
+		{
+			int bin = chrBinMap.get(index);
+			int region = bin / binsPerRegion;
+			int lastRegion = numRegionsForLB-1;
+			
+			return (region > lastRegion)? lastRegion : region;
+		}
+		catch(Exception e)
+		{
+			return -1;
+		}
+	} 
+	
 	public String getMode()
 	{
 		return mode;
@@ -278,7 +316,7 @@ public class Configuration implements Serializable
 		return numRegions;
 	}
 	
-	public String getNumRegionsForLB()
+	public int getNumRegionsForLB()
 	{
 		return numRegionsForLB;
 	}
@@ -329,6 +367,12 @@ public class Configuration implements Serializable
 		Integer execValue = value; // - 1280; // 1280 mb less
 		
 		return "-Xmx" + execValue.toString() + "m";
+	}
+	
+	// Hamid: 6th March 2018
+	public boolean getUseGATK4()
+	{
+		return useGATK4.toLowerCase().equals("true");
 	}
 	
 	public String getHadoopInstall()

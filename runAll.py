@@ -45,6 +45,10 @@ for i in range(0, iterations):
 	times_list.append(ct)
 	addToLog(">> Part" + part + " took " + getElapsedStr(int(ct-pt)))
 	addToLog("--------------------------------------")
+	if int(part) == 2:
+		if os.path.exists("sparkLog.txt"):
+			os.system("rm sparkLog.txt")
+		os.system("hadoop fs -get sparkLog.txt")
 
 totalTime = getElapsedStr(int(times_list[iterations]-times_list[0]))
 addToLog(">> From part " + str(startingPart) + " till end, it took " + totalTime)

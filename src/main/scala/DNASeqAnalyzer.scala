@@ -225,7 +225,15 @@ def bwaRun (chunkName: String, config: Configuration) : Array[(Long, Int)] =
 		{
 			val chrIndex = (arr(i)._1 / ProgramFlags.SF).toInt
 			val chrArrayIndex = config.getChrArrayIndex(chrIndex)
-			val region = config.getChrRegion(chrArrayIndex)
+			val chrPos = arr(i)._1 % ProgramFlags.SF
+			var region = config.getChrRegion(chrArrayIndex, chrPos)
+			
+			if (region == -1)
+			{
+				region = config.getNumRegionsForLB - 1
+				LogWriter.dbgLog(pwLog, t0, "ERROR\t" + "getChrRegion error for " + chrIndex + ", " + chrPos + ". Region assigned = " + region, config)
+				println("ERROR\t" + "getChrRegion error for " + chrIndex + ", " + chrPos + ". Region assigned = " + region)
+			}
 			bfWriter(region).writeRecord(arr(i))
 			retArr(i) = (arr(i)._1, arr(i)._2)
 		}
@@ -306,6 +314,11 @@ def getRegion(chrRegion: Integer, lbRegion: Integer, samRecordsZipped: Array[Arr
 
 	if (ProgramFlags.downloadNeededFiles)
 		DownloadManager.downloadDictFile(config)
+		
+	// Sorting
+	implicit val samRecordOrdering = new Ordering[SAMRecord] {
+		override def compare(a: SAMRecord, b: SAMRecord) = compareSAMRecords(a,b)
+	}
 
 	var samRecordsSorted: Array[SAMRecord] = null 
 	if (writeInString)
@@ -319,7 +332,7 @@ def getRegion(chrRegion: Integer, lbRegion: Integer, samRecordsZipped: Array[Arr
 		val badLines = new Array[Int](nThreads)
 		val elsPerThread = samRecordsZipped.size / nThreads
 		
-		LogWriter.dbgLog("getRegion/" + lbRegion + "/region_" + chrRegion, t0, "1a\tCreating key value pairs, elsPerThreads = " + 
+		LogWriter.dbgLog("getRegion/" + lbRegion + "/region_" + chrRegion, t0, "[1a]\tCreating key value pairs, elsPerThreads = " + 
 			elsPerThread + ", total elements = " + samRecordsZipped.size, config)
 		
 		for(thread <- 0 until nThreads)
@@ -367,7 +380,7 @@ def getRegion(chrRegion: Integer, lbRegion: Integer, samRecordsZipped: Array[Arr
 							{
 								srecs(thread).synchronized
 								{
-									LogWriter.dbgLog("getRegion/" + lbRegion + "/region_" + chrRegion, t0, "1b\t" + printCounter + "." + count + 
+									LogWriter.dbgLog("getRegion/" + lbRegion + "/region_" + chrRegion, t0, "[1b]\t" + printCounter + "." + count + 
 										"recs processed!, sb.size = " + sb.size, config)
 								}
 							}
@@ -395,8 +408,9 @@ def getRegion(chrRegion: Integer, lbRegion: Integer, samRecordsZipped: Array[Arr
 		
 		for(thread <- 0 until nThreads)
 			threadArray(thread).join
+		// Hamid: 1st March 2018
 		//////////////////////////////////////////////////////////////////////	
-		var srecsCombined = srecs(0)
+		/*var srecsCombined = srecs(0)
 		var totalCountCombined = totalCount(0)
 		var badLinesCombined = badLines(0)
 		if (nThreads > 1)
@@ -409,12 +423,49 @@ def getRegion(chrRegion: Integer, lbRegion: Integer, samRecordsZipped: Array[Arr
 			}
 		}
 		samRecordsSorted = srecsCombined.toArray
-		LogWriter.dbgLog("getRegion/" + lbRegion + "/region_" + chrRegion, t0, "2\tSorting " + samRecordsSorted.size + " reads. Number of records = " + 
+		*/
+		//////////////////////////////////////////////////////////////////////
+		samRecordsSorted = {
+			if (nThreads == 1) 
+				srecs(0).toArray 
+			else 
+			{
+				var arraySize = 0
+				for(i <- 0 until nThreads)
+					arraySize += srecs(i).size
+				new Array[SAMRecord](arraySize)
+			}
+		}
+		
+		var totalCountCombined = 0
+		var badLinesCombined = 0
+		if (nThreads > 1)
+		{
+			var index = 0
+			for(i <- 0 until nThreads)
+			{
+				val arr = srecs(i)
+				for(j <- 0 until arr.size)
+				{
+					samRecordsSorted(index) = arr(j)
+					index += 1
+				}
+				totalCountCombined += totalCount(i)
+				badLinesCombined += badLines(i)
+			}
+		}
+		else
+		{
+			totalCountCombined = totalCount(0)
+			badLinesCombined = badLines(0)
+		}
+		//////////////////////////////////////////////////////////////////////
+		LogWriter.dbgLog("getRegion/" + lbRegion + "/region_" + chrRegion, t0, "[2]\tSorting " + samRecordsSorted.size + " reads. Number of records = " + 
 			totalCountCombined + ". Number of bad lines = " + badLinesCombined, config)
 	}
 	else
 	{
-		LogWriter.dbgLog("getRegion/" + lbRegion + "/region_" + chrRegion, t0, "1a\tCreating key value pairs", config)
+		LogWriter.dbgLog("getRegion/" + lbRegion + "/region_" + chrRegion, t0, "<1a>\tCreating key value pairs", config)
 		val fileName = config.getTmpFolder + lbRegion + "_" + chrRegion + ".bin"
 		val writer = new BufferedWriter(new FileWriter(fileName))
 		writer.write(FilesManager.readDictFile(config))
@@ -425,21 +476,25 @@ def getRegion(chrRegion: Integer, lbRegion: Integer, samRecordsZipped: Array[Arr
 			count += 1
 		}
 		writer.close
-		LogWriter.dbgLog("getRegion/" + lbRegion + "/region_" + chrRegion, t0, "1b\tNumber of records = " + count, config)
+		LogWriter.dbgLog("getRegion/" + lbRegion + "/region_" + chrRegion, t0, "<1b>\tNumber of records = " + count, config)
 		val bwaSamRecs = new BWASamRecs(fileName, chrRegion, config)
 		val badLines = bwaSamRecs.parseSam
 		samRecordsSorted = bwaSamRecs.getArray
 		bwaSamRecs.close
 		new File(fileName).delete
-		LogWriter.dbgLog("getRegion/" + lbRegion + "/region_" + chrRegion, t0, "2\tSorting " + samRecordsSorted.size + " reads. Number of bad lines = " + badLines, config)
+		LogWriter.dbgLog("getRegion/" + lbRegion + "/region_" + chrRegion, t0, "<2>\tSorting " + samRecordsSorted.size + " reads. Number of bad lines = " + badLines, config)
 	}
 	
-	// Sorting
-	implicit val samRecordOrdering = new Ordering[SAMRecord] {
-		override def compare(a: SAMRecord, b: SAMRecord) = compareSAMRecords(a,b)
-	}
+	if (samRecordsSorted == null)
+		LogWriter.dbgLog("getRegion/" + lbRegion + "/region_" + chrRegion, t0, "HAMID: samRecordsSorted == null!", config)
+	else
+		LogWriter.dbgLog("getRegion/" + lbRegion + "/region_" + chrRegion, t0, "HAMID: samRecordsSorted.size == " + samRecordsSorted.size, config)
+		
+	for (i <-0 until samRecordsSorted.size)
+		if (samRecordsSorted(i) == null)
+			LogWriter.dbgLog("getRegion/" + lbRegion + "/region_" + chrRegion, t0, "HAMID: Element " + i + " of samRecordsSorted == null", config)
+			
 	scala.util.Sorting.quickSort(samRecordsSorted)
-	//
 	
 	LogWriter.dbgLog("getRegion/" + lbRegion + "/region_" + chrRegion, t0, "3\t" + samRecordsSorted.size + " reads sorted!", config)
 	return (chrRegion, samRecordsSorted)
@@ -663,6 +718,20 @@ def picardPreprocess(tmpFileBase: String, pwLog: PrintWriter, config: Configurat
 	if (ProgramFlags.saveAllStages)
 		FilesManager.uploadFileToOutput(bamOut, "picardOutput", false, config)
 	
+	// Hamid dbg - 7th March 2018 ////////////////////////////////////////////
+	println("HAMID //////////////////////////////////////////////////////////")
+	val currentDirectory = new java.io.File(".").getCanonicalPath
+	println("CURRENT DIRECTORY IS " + currentDirectory)
+	val d = new File(currentDirectory)
+	val x = d.listFiles.filter(_.isFile).toList
+	x.foreach(println)
+	val p = "/home/sshuser/gatk-4.0.2.1/"
+	var file = new File(p + "gatk") 
+	file.setExecutable(true)
+	file = new File(p + "gatk-completion.sh") 
+	file.setExecutable(true)
+	println("////////////////////////////////////////////////////////////////")
+	//////////////////////////////////////////////////////////////////////////
 	// Delete temporary files
 	LogWriter.dbgLog(pwLog, t0, "picard\tDeleting files " + tmpOut1 + ", " + tmpOut2 + ", and " + tmpMetrics, config)
 	new File(tmpMetrics).delete
@@ -722,9 +791,24 @@ def baseQualityScoreRecalibration(tmpFileBase: String, t0: Long, chrRegion: Stri
 	val javaTmp = if (ProgramFlags.useTmpDirForJava) ("java -Djava.io.tmpdir=" + config.getTmpFolder) else  "java"
 	
 	// Base recalibrator
-	var cmdStr = javaTmp + " " + MemString + " -jar " + toolsFolder + 
-		"GenomeAnalysisTK.jar -T BaseRecalibrator -nct " + config.getNumThreads() + " -R " + FilesManager.getRefFilePath(config) + " -I " + 
-		tmpFile1 + " -o " + table + regionStr + " --disable_auto_index_creation_and_locking_when_reading_rods" + indelStr + " -knownSites " + knownSite
+	var cmdStr = {
+		if (config.getUseGATK4)
+		{
+			println("HAMID BQSR//////////////////////////////////////////////////////////")
+			val currentDirectory = new java.io.File(".").getCanonicalPath
+			println("BQSR CURRENT DIRECTORY IS " + currentDirectory)
+	
+			"gatk --java-options " + MemString + " BaseRecalibrator -R " + FilesManager.getRefFilePath(config) + " -I " + 
+				tmpFile1 + " -O " + table + regionStr + " -known-sites " + knownSite
+		}
+		else
+		{
+			javaTmp + " " + MemString + " -jar " + toolsFolder + 
+			"GenomeAnalysisTK.jar -T BaseRecalibrator -nct " + config.getNumThreads() + " -R " + FilesManager.getRefFilePath(config) + " -I " + 
+			tmpFile1 + " -o " + table + regionStr + " --disable_auto_index_creation_and_locking_when_reading_rods" + indelStr + " -knownSites " + knownSite
+		}
+	}
+	println("COMMANDSTR = " + cmdStr)
 	LogWriter.dbgLog(pwLog, t0, "base1\t" + cmdStr, config)
 	var status = execCommand(cmdStr, "base1", chrRegion, t0, config)
 	LogWriter.dbgLog(pwLog, t0, "\tExit status = " + status, config)
@@ -732,9 +816,19 @@ def baseQualityScoreRecalibration(tmpFileBase: String, t0: Long, chrRegion: Stri
 	if (ProgramFlags.doPrintReads)
 	{
 		// Print reads
-		cmdStr = javaTmp + " " + MemString + " -jar " + toolsFolder + 
-			"GenomeAnalysisTK.jar -T PrintReads -R " + FilesManager.getRefFilePath(config) + " -I " + tmpFile1 + " -o " + tmpFile2 + 
-			" -BQSR " + table + regionStr 
+		cmdStr = {
+			if (config.getUseGATK4)
+			{
+				"gatk --java-options " + MemString + " ApplyBQSR -R " + FilesManager.getRefFilePath(config) + " -I " + tmpFile1 + " -O " + tmpFile2 + 
+					" -bqsr " + table + regionStr
+			}
+			else
+			{
+				javaTmp + " " + MemString + " -jar " + toolsFolder + 
+				"GenomeAnalysisTK.jar -T PrintReads -R " + FilesManager.getRefFilePath(config) + " -I " + tmpFile1 + " -o " + tmpFile2 + 
+				" -BQSR " + table + regionStr
+			}
+		}
 		LogWriter.dbgLog(pwLog, t0, "base2\t" + cmdStr, config)
 		status = execCommand(cmdStr, "base2", chrRegion, t0, config)
 		LogWriter.dbgLog(pwLog, t0, "\tExit status = " + status, config)
@@ -819,11 +913,21 @@ def dnaVariantCalling(tmpFileBase: String, t0: Long, chrRegion: String, pwLog: P
 	LogWriter.dbgLog(pwLog, t0, "unzip2\t" + cmdStr, config)
 	
 	// Haplotype caller
-	cmdStr = javaTmp + " " + MemString + " " + config.getGATKopts + " -jar " + toolsFolder + 
-		gatkUnzippedFolder + "/" + gatkFolder + "/GenomeAnalysisTK.jar -T HaplotypeCaller -nct " + config.getNumThreads + 
-		" -R " + FilesManager.getRefFilePath(config) + 
-		" -I " + tmpFile2 + bqsrStr + " --genotyping_mode DISCOVERY -o " + snps + standconf + standemit + 
-		regionStr + " --no_cmdline_in_header --disable_auto_index_creation_and_locking_when_reading_rods"
+	cmdStr = {
+		if (config.getUseGATK4)
+		{
+			"gatk --java-options " + MemString + " HaplotypeCaller -R " + FilesManager.getRefFilePath(config) + 
+				" -I " + tmpFile2 + " -O " + snps + regionStr
+		}
+		else
+		{
+			javaTmp + " " + MemString + " " + config.getGATKopts + " -jar " + toolsFolder + 
+			gatkUnzippedFolder + "/" + gatkFolder + "/GenomeAnalysisTK.jar -T HaplotypeCaller -nct " + config.getNumThreads + 
+			" -R " + FilesManager.getRefFilePath(config) + 
+			" -I " + tmpFile2 + bqsrStr + " --genotyping_mode DISCOVERY -o " + snps + standconf + standemit + 
+			regionStr + " --no_cmdline_in_header --disable_auto_index_creation_and_locking_when_reading_rods"
+		}
+	}
 	val hdfsManager = FileManagerFactory.createInstance(ProgramFlags.distFileSystem, config)
 	
 	LogWriter.dbgLog(pwLog, t0, "haplo1\t" + cmdStr, config)
@@ -1091,7 +1195,8 @@ def main(args: Array[String])
 		// RDD[(Int, Array[Byte])]
 		val chrToSamRecord1 = inputData.flatMap(x => getSamRecords(x, i, bcChrPosMap.value, bcConfig.value))
 		chrToSamRecord1.setName("rdd_chrToSamRecord1_" + i)
-		chrToSamRecord1.persist(MEMORY_AND_DISK_SER)
+		// Hamid: 13th March
+		//chrToSamRecord1.persist(MEMORY_AND_DISK_SER)
 		val chrToSamRecord2 = chrToSamRecord1.mapValues(ab => Array(ab)).reduceByKey((a1, a2) => a1 ++ a2)
 		chrToSamRecord2.persist(MEMORY_AND_DISK_SER)
 		chrToSamRecord2.setName("rdd_chrToSamRecord2_" + i)
@@ -1115,14 +1220,19 @@ def main(args: Array[String])
 		val inputData = inputData1BySize.sortByKey(false).map(_._2)
 		inputData.setName("rdd_inputData")
 		// RDD[((Integer, Integer), String)]
-		val vcf = inputData.flatMap(x => variantCall(x, bcConfig.value))
-		vcf.setName("rdd_vc")
-		//vcf.distinct.sortByKey().map(_._2).coalesce(1, false).saveAsTextFile(config.getOutputFolder + "combinedVCF")
-		val vcfCollected = vcf.distinct.sortByKey().map(_._2 + '\n').collect
-		val writer = hdfsManager.open(config.getOutputFolder + "sparkCombined.vcf")
-		for(e <- vcfCollected)
-			writer.write(e)
-		writer.close
+		if (ProgramFlags.combineVCFsSeparately)
+			inputData.foreach(x => variantCall(x, bcConfig.value))
+		else
+		{
+			val vcf = inputData.flatMap(x => variantCall(x, bcConfig.value))
+			vcf.setName("rdd_vc")
+			//vcf.distinct.sortByKey().map(_._2).coalesce(1, false).saveAsTextFile(config.getOutputFolder + "combinedVCF")
+			val vcfCollected = vcf.distinct.sortByKey().map(_._2 + '\n').collect
+			val writer = hdfsManager.open(config.getOutputFolder + "sparkCombined.vcf")
+			for(e <- vcfCollected)
+				writer.write(e)
+			writer.close
+		}
 	}
 	else // You get a combined vcf file with part3 anyway. So, this part is just for the case where for some reason, you want to combine the output vcf files again.
 	{

@@ -9,6 +9,7 @@ object ProgramFlags
 	final val rmDupsInBWA = false
 	final val SF = 1e12.toLong
 	final val chrPosGran = 5000
+	final val combineVCFsSeparately = false
 	// Downloading
 	final val downloadNeededFiles = false
 	// Compression and reading of HDFS files

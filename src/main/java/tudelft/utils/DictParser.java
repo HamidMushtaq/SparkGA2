@@ -31,6 +31,11 @@ public class DictParser
 	long chrLenSum;
 	// Length of each chromosome
 	ArrayList<Integer> chrLenArray;
+	//////////////////////////////////////////
+	// HashMap for bins
+	private HashMap<Integer, Integer> chrBinMap;
+	int binPosCounter;
+	//////////////////////////////////////////
 	// <Chromosome index, Array Index>
 	private HashMap<Integer, Integer> chrArrayIndexMap;
 	// <Chromosome's name, index>
@@ -64,27 +69,15 @@ public class DictParser
 			return null;
 		}
 	}
-	
-	void setChrRegions(int regions)
+
+	public int getTotalNumOfBins()
 	{
-		int N = chrLenArray.size();
-		chrRegionArray = new int[N];
-		int regionSize = (int)(chrLenSum / regions);
-		int currRegion = 0;
-		int accSize = 0;
-		
-		for(int i = 0; i < N; i++)
-		{
-			chrRegionArray[i] = currRegion;
-			accSize += chrLenArray.get(i);
-			if (accSize > regionSize)
-			{
-				accSize = 0;
-				currRegion += 1;
-			}
-			if (currRegion >= regions)
-				currRegion = regions - 1;
-		}
+		return binPosCounter;
+	}
+	
+	public HashMap<Integer, Integer> getChrBinMap()
+	{
+		return chrBinMap;
 	}
 	
 	public int[] getChrRegionArray()
@@ -112,12 +105,16 @@ public class DictParser
 			dict = new SAMSequenceDictionary();
 			line = getLine(stream);
 			chrLenArray = new ArrayList<Integer>();
+			/////////////////////////////////////////
+			binPosCounter = 0;
+			/////////////////////////////////////////
 			int chrIndex = 0;
 			int arrayIndex = 0;
 			
 			chrLenSum = 0;
 			chrNameMap = new HashMap();
 			chrArrayIndexMap = new HashMap();
+			chrBinMap = new HashMap();
 			while(line != null) 
 			{
 				// @SQ	SN:chrM	LN:16571
@@ -133,6 +130,15 @@ public class DictParser
 						chrLenArray.add(seqLength);
 						chrLenSum += seqLength;
 						chrArrayIndexMap.put(chrIndex, arrayIndex++);
+						
+						int numOfBins = seqLength / (int)1e6;
+						if (numOfBins == 0)
+							numOfBins = 1;
+						for(int i = 0; i < numOfBins; i++)
+						{
+							int index = chrIndex * (int)1e6 + i;
+							chrBinMap.put(index, binPosCounter++);
+						}
 					}
 				} 
 				catch(NumberFormatException ex) 

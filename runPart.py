@@ -91,6 +91,7 @@ def executeHadoop(part, ni, em, extra_param):
 	"--class \"DNASeqAnalyzer\" --master " + master + " --deploy-mode " + deploy_mode + " " + \
 	"--files " + configFilePath + "," + dictPath + "," + toolsStr + " " + \
 	"--conf spark.executorEnv.GATK_GPU=\"1\" " + \
+	"--conf spark.executorEnv.PATH=/home/sshuser/bin:/home/sshuser/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/home/sshuser/gatk-4.0.2.1 " + \
 	"--conf spark.executorEnv.PAIRHMM_PATH=\"/home/genomics/4Hamid/shanshan/files/pairHMMKernel.cubin\" " + \
 	"--conf spark.executorEnv.PHMM_N_THREADS=\"1\" " + \
 	"--driver-memory " + driver_mem + " --executor-memory " + em + " " + \
