@@ -32,20 +32,22 @@ The tools that we used can be found [here](https://drive.google.com/drive/u/1/fo
 	```
 	<gatkOpts>-XX:+AggressiveOpts -Djava.library.path=/home/genomics/4Hamid/shanshan/files/PairHMM_Vector_Power8_Ubuntu/</gatkOpts>
 	```
-Which means that the `PairHMM_Vector_Power8_Ubuntu` folder should be present in the directory `/home/genomics/4Hamid/shanshan/files/PairHMM_Vector_Power8_Ubuntu/` of each node, in this case.
+	Which means that the `PairHMM_Vector_Power8_Ubuntu` folder should be present in the directory `/home/genomics/4Hamid/shanshan/files/PairHMM_Vector_Power8_Ubuntu/` of each node, in this case.
 
 * The gpu accelerated version also requires a `*.cubin` file. For example, if you look at the `runPart.py` given in this folder, you would notice the following line.
 	```
 	"--conf spark.executorEnv.PAIRHMM_PATH=\"/home/genomics/4Hamid/shanshan/files/pairHMMKernel.cubin\" " 
 	```
-It means, you must put the `pairHMMKernel.cubin` file in the `/home/genomics/4Hamid/shanshan/files` directory of each node.
+	It means, you must put the `pairHMMKernel.cubin` file in the `/home/genomics/4Hamid/shanshan/files` directory of each node.
 
 * You can make the input chunks either separately, or in parallel (in a streaming fashion) with the main program. If you want to do chunking separately, then you can issue the following command first.
 	`./run.py chunker_2.11-1.0.jar config/chunker/config.xml`
-Make sure in this case you have the input *.gz files mentioned in `config/chunker/config.xml`. Alternatively, you could stream directly from the web (See config/chunker/config_ftp.xml) for an example.
+	Make sure in this case you have the input *.gz files mentioned in `config/chunker/config.xml`. Alternatively, you could stream directly from the web (See config/chunker/config_ftp.xml) for an example.
 
 * Then you can run the program by using `runAll.py`. Before running the program, you must also have the reference's *.dict file (human_g1k_v37_decoy.dict in our case) in that folder. Moreover, you must have the compiled jar file as well as the lib folder containing the htsjdk-1.143.jar. 
 
 * If you want to run the chunker in parallel, all you need to do is to put something like the following in the inputFolder tag.
-	`<inputFolder>config/chunker/config.xml:1280:chunks</inputFolder>`
-Here config/chunker/config.xml is the config file given to the chunker utility. 1280 is the number of chunks that you except. This should be at least equal to the number of chunks that would be created. Always make a higher guess and never a lower one. Finally, chunks is the input folder. This should be the same as the outputFolder in the chunker's config file.
+	```
+	<inputFolder>config/chunker/config.xml:1280:chunks</inputFolder>
+	```
+	Here config/chunker/config.xml is the config file given to the chunker utility. 1280 is the number of chunks that you except. This should be at least equal to the number of chunks that would be created. Always make a higher guess and never a lower one. Finally, chunks is the input folder. This should be the same as the outputFolder in the chunker's config file.
