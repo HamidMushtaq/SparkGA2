@@ -50,4 +50,4 @@ The tools that we used can be found [here](https://drive.google.com/drive/u/1/fo
 	```
 	<inputFolder>config/chunker/config.xml:1280:chunks</inputFolder>
 	```
-	Here config/chunker/config.xml is the config file given to the chunker utility. 1280 is the number of chunks that you except. This should be at least equal to the number of chunks that would be created. Always make a higher guess and never a lower one. Finally, chunks is the input folder. This should be the same as the outputFolder in the chunker's config file.
+	Here `config/chunker/config.xml` is the config file given to the chunker utility. 1280 is the number of chunks that you except. This should be at least equal to the number of chunks that would be created. Always make a higher guess and never a lower one. Finally, chunks is the input folder. This should be the same as the outputFolder in the chunker's config file.
